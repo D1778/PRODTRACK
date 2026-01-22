@@ -1,3 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* You can remove the .snap-container and .snap-section classes 
+   if you aren't using them elsewhere. */
