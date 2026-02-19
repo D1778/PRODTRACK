@@ -6,14 +6,30 @@ export default function Signup() {
   const { signup } = useApp();
   const navigate = useNavigate();
   const [message, setMessage] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
+    setMessage(null);
+
     const role = e.target.role.value;
     if (!role) { setMessage({ ok: false, text: "Please select a role" }); return; }
-    signup(e.target.fullName.value, e.target.email.value, e.target.password.value, role);
-    setMessage({ ok: true, text: "Account created successfully! Redirecting..." });
-    setTimeout(() => { setMessage(null); navigate("/login"); }, 1500);
+
+    setLoading(true);
+    const result = await signup(
+      e.target.fullName.value,
+      e.target.email.value,
+      e.target.password.value,
+      role
+    );
+    setLoading(false);
+
+    if (result.success) {
+      setMessage({ ok: true, text: result.message + " Redirecting..." });
+      setTimeout(() => { setMessage(null); navigate("/login"); }, 1500);
+    } else {
+      setMessage({ ok: false, text: result.message });
+    }
   };
 
   return (
@@ -47,7 +63,9 @@ export default function Signup() {
               <option value="staff">Staff</option>
             </select>
           </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Create Account</button>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
+            {loading ? "Creating Account..." : "Create Account"}
+          </button>
         </form>
         <div className="auth-footer">
           Already have an account? <Link to="/login" className="auth-link">Login here</Link>
