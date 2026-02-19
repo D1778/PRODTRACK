@@ -17,14 +17,13 @@ export default function Alerts() {
                             <strong>{p.name}</strong>
                             <div style={{ fontSize: 13, marginTop: 4 }}>
                                 Current Stock: <strong>{p.stock}</strong> | Minimum Threshold: <strong>{p.minThreshold}</strong>
-                                {isOut && <span style={{ color: 'var(--danger)', marginLeft: 8 }}>⚠️ OUT OF STOCK</span>}
+                                {isOut && <span style={{ color: 'var(--danger)', marginLeft: 8 }}>OUT OF STOCK</span>}
                             </div>
                         </div>
                     </div>
                 );
             }) : (
                 <div className="empty-state">
-                    <div className="empty-icon">✅</div>
                     <h3>All Good!</h3>
                     <p>No low stock alerts at this time.</p>
                 </div>

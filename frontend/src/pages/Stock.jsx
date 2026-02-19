@@ -31,11 +31,11 @@ export default function Stock() {
                     <label className="form-label">Stock Action *</label>
                     <div className="stock-action-grid">
                         <div className={`action-option ${action === "in" ? "selected" : ""}`} onClick={() => selectAction("in")}>
-                            <h3>📥 Stock IN</h3>
+                            <h3>Stock IN</h3>
                             <p>Add inventory</p>
                         </div>
                         <div className={`action-option ${action === "out" ? "selected" : ""}`} onClick={() => selectAction("out")}>
-                            <h3>📤 Stock OUT</h3>
+                            <h3>Stock OUT</h3>
                             <p>Remove inventory</p>
                         </div>
                     </div>

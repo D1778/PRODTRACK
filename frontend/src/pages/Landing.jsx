@@ -11,7 +11,7 @@ export default function Landing() {
             <a href="#features" className="nav-link">Home</a>
             <a href="#features" className="nav-link">Features</a>
             <a href="#benefits" className="nav-link">Benefits</a>
-            <Link to="/login" className="btn btn-primary">Get Started →</Link>
+            <Link to="/login" className="btn btn-primary">Get Started</Link>
           </nav>
         </div>
       </header>
@@ -20,7 +20,7 @@ export default function Landing() {
       <section className="hero">
         <div className="hero-container">
           <div className="hero-content">
-            <span className="hero-badge">🚀 Smart Inventory Management</span>
+            <span className="hero-badge">Smart Inventory Management</span>
             <h1 className="hero-title">
               Manage Your<br />
               <span className="gradient-text">Inventory</span><br />
@@ -30,7 +30,7 @@ export default function Landing() {
               PRODTRACK is a powerful, role-based inventory management system designed for businesses of all sizes. Track products, manage stock, monitor alerts, and maintain complete transparency.
             </p>
             <div className="hero-buttons">
-              <Link to="/login" className="btn btn-primary btn-large">Launch Dashboard →</Link>
+              <Link to="/login" className="btn btn-primary btn-large">Launch Dashboard</Link>
               <a href="#features" className="btn btn-ghost btn-large">Learn More</a>
             </div>
           </div>
@@ -77,12 +77,12 @@ export default function Landing() {
             </p>
           </div>
           <div className="features-grid">
-            <FeatureCard icon="📊" title="Real-Time Dashboard" desc="Get instant insights with live metrics, stock levels, and recent activity at a glance." />
-            <FeatureCard icon="📦" title="Product Management" desc="Easily add, track, and categorize products with searchable and filterable lists." />
-            <FeatureCard icon="📥" title="Stock Control" desc="Manage stock movements with intuitive IN/OUT controls and automatic logging." />
-            <FeatureCard icon="🔔" title="Smart Alerts" desc="Receive automatic notifications when stock levels fall below your threshold." />
-            <FeatureCard icon="📋" title="Complete History" desc="Maintain full audit trails with detailed logs of every stock movement." />
-            <FeatureCard icon="👥" title="Role-Based Access" desc="Secure multi-user support with customizable permissions for Owners and Staff." />
+            <FeatureCard title="Real-Time Dashboard" desc="Get instant insights with live metrics, stock levels, and recent activity at a glance." />
+            <FeatureCard title="Product Management" desc="Easily add, track, and categorize products with searchable and filterable lists." />
+            <FeatureCard title="Stock Control" desc="Manage stock movements with intuitive IN/OUT controls and automatic logging." />
+            <FeatureCard title="Smart Alerts" desc="Receive automatic notifications when stock levels fall below your threshold." />
+            <FeatureCard title="Complete History" desc="Maintain full audit trails with detailed logs of every stock movement." />
+            <FeatureCard title="Role-Based Access" desc="Secure multi-user support with customizable permissions for Owners and Staff." />
           </div>
         </div>
       </section>
@@ -96,10 +96,10 @@ export default function Landing() {
             <p style={{ fontSize: 18, color: 'var(--text-secondary)', marginBottom: 40, lineHeight: 1.7 }}>
               Designed with simplicity and power in mind, PRODTRACK helps you stay in control of your inventory without the complexity.
             </p>
-            <BenefitItem icon="⚡" title="Lightning Fast" desc="Built with React for instant updates and smooth performance across all devices." />
-            <BenefitItem icon="🔒" title="Secure & Private" desc="Your data stays secure with role-based access control and encrypted storage." />
-            <BenefitItem icon="📱" title="Mobile Friendly" desc="Manage your inventory on the go with fully responsive design for any device." />
-            <BenefitItem icon="🎯" title="Easy to Use" desc="Intuitive interface designed for users of all ages and technical skill levels." />
+            <BenefitItem title="Lightning Fast" desc="Built with React for instant updates and smooth performance across all devices." />
+            <BenefitItem title="Secure & Private" desc="Your data stays secure with role-based access control and encrypted storage." />
+            <BenefitItem title="Mobile Friendly" desc="Manage your inventory on the go with fully responsive design for any device." />
+            <BenefitItem title="Easy to Use" desc="Intuitive interface designed for users of all ages and technical skill levels." />
           </div>
           <div>
             <div className="stats-grid">
@@ -121,7 +121,7 @@ export default function Landing() {
             Join businesses worldwide who trust PRODTRACK to manage their inventory efficiently and effectively.
           </p>
           <div className="cta-buttons">
-            <Link to="/login" className="btn btn-primary btn-large">Start Managing Inventory →</Link>
+            <Link to="/login" className="btn btn-primary btn-large">Start Managing Inventory</Link>
             <a href="#features" className="btn btn-ghost btn-large">View All Features</a>
           </div>
         </div>
@@ -150,20 +150,34 @@ export default function Landing() {
   );
 }
 
-function FeatureCard({ icon, title, desc }) {
+function FeatureCard({ title, desc }) {
+  const emojis = {
+    "Real-Time Dashboard": "📊",
+    "Product Management": "📦",
+    "Stock Control": "🔄",
+    "Smart Alerts": "🔔",
+    "Complete History": "📜",
+    "Role-Based Access": "👤"
+  };
   return (
     <div className="feature-card">
-      <span className="feature-icon">{icon}</span>
+      <div className="feature-icon">{emojis[title] || "✨"}</div>
       <h3 className="feature-title">{title}</h3>
       <p className="feature-desc">{desc}</p>
     </div>
   );
 }
 
-function BenefitItem({ icon, title, desc }) {
+function BenefitItem({ title, desc }) {
+  const emojis = {
+    "Lightning Fast": "⚡",
+    "Secure & Private": "🛡️",
+    "Mobile Friendly": "📱",
+    "Easy to Use": "🎨"
+  };
   return (
     <div className="benefit-item">
-      <div className="benefit-icon">{icon}</div>
+      <div className="benefit-icon">{emojis[title] || "✅"}</div>
       <div>
         <h3 className="benefit-title">{title}</h3>
         <p className="benefit-desc">{desc}</p>

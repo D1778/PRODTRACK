@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 )
 
-// ======================== STRUCTS ========================
+// ============================================================================
+// STRUCTS (Data Blueprints)
+// In Go, a 'struct' is like a template for data. It's similar to an Object in JS.
+// The `json:"..."` tags tell Go how to name these fields when converting to JSON.
+// ============================================================================
 
 type User struct {
 	Name     string `json:"name"`
@@ -31,17 +34,20 @@ type StockHistory struct {
 	ID          int64  `json:"id"`
 	ProductID   int    `json:"productId"`
 	ProductName string `json:"productName"`
-	Action      string `json:"action"` // "in" or "out"
+	Action      string `json:"action"` // "in" (stock added) or "out" (stock removed)
 	Quantity    int    `json:"quantity"`
 	PerformedBy string `json:"performedBy"`
 	Timestamp   string `json:"timestamp"`
 	Notes       string `json:"notes"`
 }
 
-// ======================== STORAGE ========================
+// ============================================================================
+// STORAGE (In-Memory Database)
+// We are using Slices (dynamic arrays) to store data while the server is running.
+// If the server restarts, this data is lost.
+// ============================================================================
 
 var (
-	mu             sync.Mutex
 	userStorage    = []User{}
 	nextProductID  = 6
 	productStorage = []Product{
@@ -57,163 +63,165 @@ var (
 	}
 )
 
-// ======================== HELPER FUNCTIONS ========================
+// ============================================================================
+// HELPER FUNCTIONS (Tools to make code cleaner)
+// ============================================================================
 
-func enableCORS(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
-}
-
-func jsonResponse(w http.ResponseWriter, status int, data interface{}) {
+// sendJSON is a simplified way to send a response back to the browser.
+// Status: The HTTP code (200 for OK, 404 for Not Found, etc.)
+// Data: Whatever info you want to send.
+func sendJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
 }
 
-// printProducts is a VARIADIC function that prints details for any number of products
-func printProducts(products ...Product) {
-	fmt.Printf("\n====== Printing %d Product(s) ======\n", len(products))
-	for _, p := range products {
-		fmt.Printf("ID:            %d\n", p.ID)
-		fmt.Printf("Name:          %s\n", p.Name)
-		fmt.Printf("Category:      %s\n", p.Category)
-		fmt.Printf("Stock:         %d\n", p.Stock)
-		fmt.Printf("Min Threshold: %d\n", p.MinThreshold)
-		fmt.Printf("Vendor:        %s\n", p.Vendor)
-		fmt.Printf("Notes:         %s\n", p.Notes)
-		fmt.Println("-----------------------------------")
-	}
-	fmt.Println("===================================")
-}
+// handleCORS handles the "security check" browsers do when calling an API.
+// If the browser asks "Are you allowed to talk to me?", we say "Yes".
+func handleCORS(w http.ResponseWriter, r *http.Request) bool {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-// ======================== HANDLERS ========================
-
-func authHandler(w http.ResponseWriter, r *http.Request) {
-	enableCORS(&w)
+	// If the browser sends an "OPTIONS" request, it's just checking permissions.
+	// we stop here and return 'true' to indicate we handled it.
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
-		return
+		return true
 	}
+	return false
+}
+
+// ============================================================================
+// HANDLERS (The code that runs for each URL)
+// ============================================================================
+
+// authHandler handles /signup and /login
+func authHandler(w http.ResponseWriter, r *http.Request) {
+	if handleCORS(w, r) {
+		return
+	} // Handle security check first
+
+	// We only allow POST requests (sending data) for login/signup
 	if r.Method != "POST" {
-		jsonResponse(w, http.StatusMethodNotAllowed, map[string]string{"message": "Method not allowed"})
+		sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Please use POST"})
 		return
 	}
 
+	// 1. SIGNUP LOGIC
 	if r.URL.Path == "/signup" {
 		var newUser User
+		// Decode the JSON coming from the browser into our 'User' struct
 		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {
-			jsonResponse(w, http.StatusBadRequest, map[string]string{"message": "Invalid request body"})
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
 			return
 		}
-		mu.Lock()
+
+		// Check if email already exists
 		for _, u := range userStorage {
 			if u.Email == newUser.Email {
-				mu.Unlock()
-				jsonResponse(w, http.StatusConflict, map[string]string{"message": "Email already registered"})
+				sendJSON(w, http.StatusConflict, map[string]string{"message": "Email already registered"})
 				return
 			}
 		}
 		userStorage = append(userStorage, newUser)
-		mu.Unlock()
-		fmt.Printf("✅ Registered: %s (%s)\n", newUser.Name, newUser.Email)
-		jsonResponse(w, http.StatusCreated, map[string]string{"message": "Account created successfully"})
 
+		fmt.Printf("User Created: %s\n", newUser.Email)
+		sendJSON(w, http.StatusCreated, map[string]string{"message": "Success!"})
+
+		// 2. LOGIN LOGIC
 	} else if r.URL.Path == "/login" {
 		var loginData User
 		if err := json.NewDecoder(r.Body).Decode(&loginData); err != nil {
-			jsonResponse(w, http.StatusBadRequest, map[string]string{"message": "Invalid request body"})
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
 			return
 		}
-		mu.Lock()
-		defer mu.Unlock()
+
 		for _, u := range userStorage {
-			if u.Email == loginData.Email && u.Password == loginData.Password && u.Role == loginData.Role {
-				fmt.Printf("✅ Login: %s (%s)\n", u.Email, u.Role)
-				jsonResponse(w, http.StatusOK, map[string]interface{}{
-					"message": "Login successful",
-					"user":    u,
-				})
+			if u.Email == loginData.Email && u.Password == loginData.Password {
+				fmt.Printf("Login: %s (%s)\n", u.Email, u.Role)
+				sendJSON(w, http.StatusOK, map[string]interface{}{"message": "Welcome!", "user": u})
 				return
 			}
 		}
-		jsonResponse(w, http.StatusUnauthorized, map[string]string{"message": "Invalid credentials"})
+		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Wrong email or password"})
 	}
 }
 
+// productsHandler handles adding and listing products
 func productsHandler(w http.ResponseWriter, r *http.Request) {
-	enableCORS(&w)
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
+	if handleCORS(w, r) {
 		return
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-
+	// GET: Browser wants to SEE the list
 	if r.Method == "GET" {
-		printProducts(productStorage...) // Variadic call with slice expansion
-		jsonResponse(w, http.StatusOK, productStorage)
+		sendJSON(w, http.StatusOK, productStorage)
 		return
 	}
 
+	// POST: Browser wants to ADD a new product
 	if r.Method == "POST" {
-		var newProduct Product
-		if err := json.NewDecoder(r.Body).Decode(&newProduct); err != nil {
-			jsonResponse(w, http.StatusBadRequest, map[string]string{"message": "Invalid request body"})
+		var p Product
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
 			return
 		}
-		newProduct.ID = nextProductID
-		nextProductID++
-		productStorage = append(productStorage, newProduct)
 
-		if newProduct.Stock > 0 {
+		p.ID = nextProductID
+		nextProductID++
+		productStorage = append(productStorage, p)
+
+		// Optionally add initial stock to history if stock > 0
+		if p.Stock > 0 {
 			historyStorage = append(historyStorage, StockHistory{
 				ID:          time.Now().UnixNano(),
-				ProductID:   newProduct.ID,
-				ProductName: newProduct.Name,
+				ProductID:   p.ID,
+				ProductName: p.Name,
 				Action:      "in",
-				Quantity:    newProduct.Stock,
+				Quantity:    p.Stock,
 				PerformedBy: "System",
 				Timestamp:   time.Now().Format(time.RFC3339),
 				Notes:       "Initial stock",
 			})
 		}
 
-		printProducts(newProduct) // Variadic call with single item
-		jsonResponse(w, http.StatusCreated, newProduct)
+		fmt.Println("--- Recent Inventory State ---")
+		for _, item := range productStorage {
+			fmt.Printf("ID: %d | Name: %-20s | Stock: %d | Category: %-15s | Vendor: %s\n", 
+				item.ID, item.Name, item.Stock, item.Category, item.Vendor)
+		}
+		fmt.Println("-------------------------------")
+		sendJSON(w, http.StatusCreated, p)
 		return
 	}
 
-	jsonResponse(w, http.StatusMethodNotAllowed, map[string]string{"message": "Method not allowed"})
+	sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Please use GET or POST"})
 }
 
+// stockHandler handles changing the stock count
 func stockHandler(w http.ResponseWriter, r *http.Request) {
-	enableCORS(&w)
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
+	if handleCORS(w, r) {
 		return
 	}
 	if r.Method != "POST" {
-		jsonResponse(w, http.StatusMethodNotAllowed, map[string]string{"message": "Method not allowed"})
+		sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Please use POST"})
 		return
 	}
 
 	var req struct {
 		ProductID   int    `json:"productId"`
-		Action      string `json:"action"`
+		Action      string `json:"action"` // "in" or "out"
 		Quantity    int    `json:"quantity"`
 		Reason      string `json:"reason"`
 		PerformedBy string `json:"performedBy"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"message": "Invalid request"})
+		sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
 		return
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-
+	// Find the product in our storage
 	var product *Product
 	for i := range productStorage {
 		if productStorage[i].ID == req.ProductID {
@@ -223,28 +231,29 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if product == nil {
-		jsonResponse(w, http.StatusNotFound, map[string]string{"message": "Product not found"})
+		sendJSON(w, http.StatusNotFound, map[string]string{"message": "Product not found"})
 		return
 	}
 
-	if req.Action == "out" {
+	if req.Action == "in" {
+		product.Stock += req.Quantity
+	} else if req.Action == "out" {
 		if product.Stock < req.Quantity {
-			jsonResponse(w, http.StatusBadRequest, map[string]string{
+			sendJSON(w, http.StatusBadRequest, map[string]string{
 				"message": fmt.Sprintf("Insufficient stock. Available: %d", product.Stock),
 			})
 			return
 		}
 		product.Stock -= req.Quantity
-	} else if req.Action == "in" {
-		product.Stock += req.Quantity
 	} else {
-		jsonResponse(w, http.StatusBadRequest, map[string]string{"message": "Invalid action"})
+		sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid action. Use 'in' or 'out'"})
 		return
 	}
 
+	// Add to history list
 	historyStorage = append(historyStorage, StockHistory{
 		ID:          time.Now().UnixNano(),
-		ProductID:   product.ID,
+		ProductID:   req.ProductID,
 		ProductName: product.Name,
 		Action:      req.Action,
 		Quantity:    req.Quantity,
@@ -253,39 +262,40 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		Notes:       req.Reason,
 	})
 
-	fmt.Printf("📦 Stock Update: %s %s %d (New Stock: %d)\n", product.Name, req.Action, req.Quantity, product.Stock)
-	printProducts(*product) // Variadic call with single item
-
-	jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": fmt.Sprintf("Stock %s successful", req.Action),
-		"product": product,
-	})
+	fmt.Printf("Stock Update: %s %s %d (New Stock: %d)\n", product.Name, req.Action, req.Quantity, product.Stock)
+	sendJSON(w, http.StatusOK, map[string]interface{}{"message": "Stock updated!", "product": product})
 }
 
+// historyHandler lets us see the log of all changes
 func historyHandler(w http.ResponseWriter, r *http.Request) {
-	enableCORS(&w)
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
+	if handleCORS(w, r) {
 		return
 	}
-	if r.Method == "GET" {
-		mu.Lock()
-		defer mu.Unlock()
-		jsonResponse(w, http.StatusOK, historyStorage)
+	if r.Method != "GET" {
+		sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Please use GET"})
 		return
 	}
-	jsonResponse(w, http.StatusMethodNotAllowed, map[string]string{"message": "Method not allowed"})
+
+	sendJSON(w, http.StatusOK, historyStorage)
 }
 
+// ============================================================================
+// MAIN FUNCTION (The starting point)
+// ============================================================================
 func main() {
+	// Step 1: Tell Go which URL leads to which function
+	// http.HandleFunc connects a URL path to a specific handler function.
 	http.HandleFunc("/signup", authHandler)
 	http.HandleFunc("/login", authHandler)
 	http.HandleFunc("/products", productsHandler)
 	http.HandleFunc("/stock", stockHandler)
 	http.HandleFunc("/history", historyHandler)
 
-	fmt.Println("🚀 ProdTrack Backend running at http://localhost:8080")
-	fmt.Println("   Routes: /signup, /login, /products, /stock, /history")
+	// Step 2: Start the server
+	// http.ListenAndServe starts the web server on a specific port.
+	// ":8080" means it will listen on port 8080 on all available network interfaces.
+	// 'nil' means it will use the default ServeMux (router) which we configured with http.HandleFunc.
+	fmt.Println("Server started at http://localhost:8080")
+	fmt.Println("Routes: /signup, /login, /products, /stock, /history")
 	http.ListenAndServe(":8080", nil)
 }

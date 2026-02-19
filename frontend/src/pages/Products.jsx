@@ -28,7 +28,7 @@ export default function Products() {
                     <input
                         type="text"
                         className="form-control"
-                        placeholder="🔍 Search products..."
+                        placeholder="Search products..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -71,7 +71,6 @@ export default function Products() {
                             <tr>
                                 <td colSpan={5}>
                                     <div className="empty-state">
-                                        <div className="empty-icon">📦</div>
                                         <h3>No Products Found</h3>
                                     </div>
                                 </td>

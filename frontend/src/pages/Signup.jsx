@@ -37,7 +37,7 @@ export default function Signup() {
       <div className="auth-card">
         <div className="auth-logo">
           <Link to="/"><h1>📦 PRODTRACK</h1></Link>
-          <p>Create Your Account</p>
+          <p>Inventory Management System</p>
         </div>
         {message && (
           <div className={`alert ${message.ok ? "alert-success" : "alert-error"}`}>{message.text}</div>

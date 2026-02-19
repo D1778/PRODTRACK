@@ -2,12 +2,12 @@ import { NavLink } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 
 const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: "📊", end: true },
-  { to: "/dashboard/products", label: "Products", icon: "📦" },
-  { to: "/dashboard/stock", label: "Stock Management", icon: "📥" },
-  { to: "/dashboard/history", label: "History", icon: "📋" },
-  { to: "/dashboard/alerts", label: "Alerts", icon: "🔔" },
-  { to: "/dashboard/profile", label: "Profile", icon: "👤" },
+  { to: "/dashboard", label: "📊 Dashboard", end: true },
+  { to: "/dashboard/products", label: "📦 Products" },
+  { to: "/dashboard/stock", label: "🔄 Stock Management" },
+  { to: "/dashboard/history", label: "📜 History" },
+  { to: "/dashboard/alerts", label: "🔔 Alerts" },
+  { to: "/dashboard/profile", label: "👤 Profile" },
 ];
 
 export default function Sidebar() {
@@ -25,7 +25,6 @@ export default function Sidebar() {
             end={item.end}
             className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
           >
-            <span>{item.icon}</span>
             <span>{item.label}</span>
           </NavLink>
         ))}

@@ -64,7 +64,6 @@ export default function History() {
                             <tr>
                                 <td colSpan={6}>
                                     <div className="empty-state">
-                                        <div className="empty-icon">📋</div>
                                         <h3>No History Found</h3>
                                     </div>
                                 </td>

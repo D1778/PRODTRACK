@@ -2,13 +2,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 
 const pages = {
-  "/dashboard": "Dashboard",
-  "/dashboard/products": "Products",
-  "/dashboard/add-product": "Add New Product",
-  "/dashboard/stock": "Stock Management",
-  "/dashboard/history": "History",
-  "/dashboard/alerts": "Alerts",
-  "/dashboard/profile": "Profile",
+  "/dashboard": "📊 Dashboard",
+  "/dashboard/products": "📦 Products",
+  "/dashboard/add-product": "➕ Add New Product",
+  "/dashboard/stock": "🔄 Stock Management",
+  "/dashboard/history": "📜 History",
+  "/dashboard/alerts": "🔔 Alerts",
+  "/dashboard/profile": "👤 Profile",
 };
 
 export default function Topbar() {
