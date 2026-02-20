@@ -142,7 +142,7 @@ export default function Landing() {
             <FooterCol title="Legal" links={["Privacy Policy", "Terms of Service", "Cookie Policy"]} />
           </div>
           <div className="footer-bottom">
-            <p>© 2024 PRODTRACK. All rights reserved. Built with ❤️ for efficient inventory management.</p>
+            <p>© 2026 PRODTRACK. All rights reserved.</p>
           </div>
         </div>
       </footer>
