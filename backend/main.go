@@ -42,7 +42,7 @@ type StockHistory struct {
 }
 
 // ============================================================================
-// STORAGE (In-Memory Database)
+// STORAGE 
 // We are using Slices (dynamic arrays) to store data while the server is running.
 // If the server restarts, this data is lost.
 // ============================================================================
@@ -64,7 +64,7 @@ var (
 )
 
 // ============================================================================
-// HELPER FUNCTIONS (Tools to make code cleaner)
+// HELPER FUNCTIONS
 // ============================================================================
 
 // sendJSON is a simplified way to send a response back to the browser.
