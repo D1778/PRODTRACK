@@ -14,19 +14,19 @@ export default function DashboardHome() {
         <div>
             <div className="summary-grid">
                 <div className="summary-card">
-                    <div className="summary-label">📦 Total Products</div>
+                    <div className="summary-label">Total Products</div>
                     <div className="summary-value">{products.length}</div>
                 </div>
                 <div className="summary-card warning">
-                    <div className="summary-label">⚠️ Low Stock Items</div>
+                    <div className="summary-label">Low Stock Items</div>
                     <div className="summary-value">{lowStock}</div>
                 </div>
                 <div className="summary-card success">
-                    <div className="summary-label">📥 Stock In Today</div>
+                    <div className="summary-label">Stock In Today</div>
                     <div className="summary-value">{inToday}</div>
                 </div>
                 <div className="summary-card danger">
-                    <div className="summary-label">📤 Stock Out Today</div>
+                    <div className="summary-label">Stock Out Today</div>
                     <div className="summary-value">{outToday}</div>
                 </div>
             </div>

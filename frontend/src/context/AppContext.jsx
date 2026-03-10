@@ -12,10 +12,17 @@ export function AppProvider({ children }) {
   // Fetch products from backend
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`${API_URL}/products`);
+      const userStr = localStorage.getItem("user");
+      const storedUser = userStr ? JSON.parse(userStr) : {};
+
+      const res = await fetch(`${API_URL}/products`, {
+        headers: { "X-Shop-ID": storedUser.shopId || "" }
+      });
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
+      } else {
+        setProducts([]);
       }
     } catch (err) {
       console.error("Failed to fetch products:", err);
@@ -25,10 +32,17 @@ export function AppProvider({ children }) {
   // Fetch history from backend
   const fetchHistory = async () => {
     try {
-      const res = await fetch(`${API_URL}/history`);
+      const userStr = localStorage.getItem("user");
+      const storedUser = userStr ? JSON.parse(userStr) : {};
+
+      const res = await fetch(`${API_URL}/history`, {
+        headers: { "X-Shop-ID": storedUser.shopId || "" }
+      });
       if (res.ok) {
         const data = await res.json();
         setStockHistory(data);
+      } else {
+        setStockHistory([]);
       }
     } catch (err) {
       console.error("Failed to fetch history:", err);
@@ -45,17 +59,20 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  const signup = async (name, email, password, role) => {
+  const signup = async (name, email, password, role, shopName, shopId) => {
     try {
       const res = await fetch(`${API_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name, email, password, role, shopName, shopId }),
       });
       const data = await res.json();
 
       if (res.status === 409) {
-        return { success: false, message: data.message || "Email already registered" };
+        return { success: false, message: data.message || "Email or Shop ID already registered" };
+      }
+      if (res.status === 404) {
+        return { success: false, message: data.message || "Shop not found" };
       }
       if (!res.ok) {
         return { success: false, message: data.message || "Signup failed" };
@@ -68,17 +85,17 @@ export function AppProvider({ children }) {
     }
   };
 
-  const login = async (email, password, role) => {
+  const login = async (email, password, shopName, shopId) => {
     try {
       const res = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password, shopName, shopId }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        return { success: false, message: data.message || "Invalid credentials" };
+        return { success: false, message: data.message || "Invalid credentials or Shop ID" };
       }
 
       const user = data.user;
@@ -105,9 +122,13 @@ export function AppProvider({ children }) {
 
   const addProduct = async (product) => {
     try {
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       const res = await fetch(`${API_URL}/products`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shop-ID": storedUser.shopId || ""
+        },
         body: JSON.stringify(product),
       });
 
@@ -131,17 +152,21 @@ export function AppProvider({ children }) {
 
   const updateStock = async (productId, action, quantity, reason) => {
     try {
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       const payload = {
         productId,
         action,
         quantity,
         reason,
-        performedBy: currentUser?.name || "Unknown"
+        performedBy: currentUser?.name || storedUser.name || "Unknown"
       };
 
       const res = await fetch(`${API_URL}/stock`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shop-ID": storedUser.shopId || ""
+        },
         body: JSON.stringify(payload)
       });
 

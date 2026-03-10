@@ -7,12 +7,13 @@ export default function Signup() {
   const navigate = useNavigate();
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("");
 
   const handleSignup = async (e) => {
     e.preventDefault();
     setMessage(null);
 
-    const role = e.target.role.value;
+    const role = selectedRole || e.target.role?.value;
     if (!role) { setMessage({ ok: false, text: "Please select a role" }); return; }
 
     setLoading(true);
@@ -20,7 +21,9 @@ export default function Signup() {
       e.target.fullName.value,
       e.target.email.value,
       e.target.password.value,
-      role
+      role,
+      role === "owner" ? e.target.shopName.value : "",
+      role === "owner" ? e.target.shopId.value : ""
     );
     setLoading(false);
 
@@ -36,7 +39,7 @@ export default function Signup() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-logo">
-          <Link to="/"><h1>📦 PRODTRACK</h1></Link>
+          <Link to="/"><h1>PRODTRACK</h1></Link>
           <p>Inventory Management System</p>
         </div>
         {message && (
@@ -57,12 +60,25 @@ export default function Signup() {
           </div>
           <div className="form-group">
             <label className="form-label">Role</label>
-            <select name="role" className="form-control" required>
+            <select name="role" className="form-control" required value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
               <option value="">Select your role</option>
               <option value="owner">Owner</option>
               <option value="staff">Staff</option>
             </select>
           </div>
+
+          {selectedRole === "owner" && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Shop Name</label>
+                <input type="text" name="shopName" className="form-control" placeholder="e.g. My Awesome Shop" required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Shop ID Number</label>
+                <input type="text" name="shopId" className="form-control" placeholder="e.g. SHP001" required />
+              </div>
+            </>
+          )}
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
             {loading ? "Creating Account..." : "Create Account"}
           </button>

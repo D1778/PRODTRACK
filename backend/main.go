@@ -18,10 +18,18 @@ type User struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Role     string `json:"role"`
+	ShopID   string `json:"shopId"`
+}
+
+type Shop struct {
+	ShopID     string `json:"shopId"`
+	ShopName   string `json:"shopName"`
+	OwnerEmail string `json:"ownerEmail"`
 }
 
 type Product struct {
 	ID           int    `json:"id"`
+	ShopID       string `json:"shopId"`
 	Name         string `json:"name"`
 	Category     string `json:"category"`
 	Stock        int    `json:"stock"`
@@ -32,6 +40,7 @@ type Product struct {
 
 type StockHistory struct {
 	ID          int64  `json:"id"`
+	ShopID      string `json:"shopId"`
 	ProductID   int    `json:"productId"`
 	ProductName string `json:"productName"`
 	Action      string `json:"action"` // "in" (stock added) or "out" (stock removed)
@@ -49,18 +58,10 @@ type StockHistory struct {
 
 var (
 	userStorage    = []User{}
-	nextProductID  = 6
-	productStorage = []Product{
-		{ID: 1, Name: "Laptop Dell XPS 15", Category: "Electronics", Stock: 15, MinThreshold: 5, Vendor: "Dell Inc", Notes: "Premium laptop"},
-		{ID: 2, Name: "iPhone 15 Pro", Category: "Electronics", Stock: 3, MinThreshold: 10, Vendor: "Apple", Notes: "Latest model"},
-		{ID: 3, Name: "Office Chair", Category: "Furniture", Stock: 25, MinThreshold: 10, Vendor: "IKEA", Notes: "Ergonomic"},
-		{ID: 4, Name: "Coffee Beans", Category: "Groceries", Stock: 8, MinThreshold: 20, Vendor: "Local Roastery", Notes: "Arabica"},
-		{ID: 5, Name: "Printer Paper A4", Category: "Office Supplies", Stock: 50, MinThreshold: 30, Vendor: "Staples", Notes: "500 sheets/pack"},
-	}
-	historyStorage = []StockHistory{
-		{ID: 1, ProductID: 1, ProductName: "Laptop Dell XPS 15", Action: "in", Quantity: 5, PerformedBy: "Admin", Timestamp: time.Now().Add(-24 * time.Hour).Format(time.RFC3339), Notes: "New shipment"},
-		{ID: 2, ProductID: 2, ProductName: "iPhone 15 Pro", Action: "out", Quantity: 2, PerformedBy: "Admin", Timestamp: time.Now().Add(-48 * time.Hour).Format(time.RFC3339), Notes: "Sales"},
-	}
+	shopStorage    = []Shop{}
+	nextProductID  = 1
+	productStorage = []Product{}
+	historyStorage = []StockHistory{}
 )
 
 // ============================================================================
@@ -81,7 +82,7 @@ func sendJSON(w http.ResponseWriter, status int, data interface{}) {
 func handleCORS(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Shop-ID")
 
 	// If the browser sends an "OPTIONS" request, it's just checking permissions.
 	// we stop here and return 'true' to indicate we handled it.
@@ -110,36 +111,108 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 1. SIGNUP LOGIC
 	if r.URL.Path == "/signup" {
-		var newUser User
-		// Decode the JSON coming from the browser into our 'User' struct
-		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {
+		var req struct {
+			Name     string `json:"name"`
+			Email    string `json:"email"`
+			Password string `json:"password"`
+			Role     string `json:"role"`
+			ShopID   string `json:"shopId"`
+			ShopName string `json:"shopName"`
+		}
+		// Decode the JSON coming from the browser
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
+			return
+		}
+
+		if req.Role == "owner" && (req.ShopID == "" || req.ShopName == "") {
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Shop Name and ID are required for Owners"})
 			return
 		}
 
 		// Check if email already exists
 		for _, u := range userStorage {
-			if u.Email == newUser.Email {
+			if u.Email == req.Email {
 				sendJSON(w, http.StatusConflict, map[string]string{"message": "Email already registered"})
 				return
 			}
 		}
+
+		if req.Role == "owner" {
+			// Ensure ShopID is unique globally
+			for _, s := range shopStorage {
+				if s.ShopID == req.ShopID {
+					sendJSON(w, http.StatusConflict, map[string]string{"message": "Shop ID already exists"})
+					return
+				}
+			}
+			shopStorage = append(shopStorage, Shop{
+				ShopID:     req.ShopID,
+				ShopName:   req.ShopName,
+				OwnerEmail: req.Email,
+			})
+		}
+
+		newUser := User{
+			Name:     req.Name,
+			Email:    req.Email,
+			Password: req.Password,
+			Role:     req.Role,
+			ShopID:   req.ShopID,
+		}
 		userStorage = append(userStorage, newUser)
 
-		fmt.Printf("User Created: %s\n", newUser.Email)
+		fmt.Printf("User Created: %s (%s) for Shop: %s\n", newUser.Email, newUser.Role, newUser.ShopID)
 		sendJSON(w, http.StatusCreated, map[string]string{"message": "Success!"})
 
 		// 2. LOGIN LOGIC
 	} else if r.URL.Path == "/login" {
-		var loginData User
-		if err := json.NewDecoder(r.Body).Decode(&loginData); err != nil {
+		var req struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+			ShopID   string `json:"shopId"`
+			ShopName string `json:"shopName"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
 			return
 		}
 
-		for _, u := range userStorage {
-			if u.Email == loginData.Email && u.Password == loginData.Password {
-				fmt.Printf("Login: %s (%s)\n", u.Email, u.Role)
+		for i, u := range userStorage {
+			if u.Email == req.Email && u.Password == req.Password {
+
+				// Owners must match their created ShopID immediately.
+				// Staff might have an empty ShopID if this is their first login.
+				if u.Role == "owner" && u.ShopID != req.ShopID {
+					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Incorrect Shop ID for this Owner account"})
+					return
+				}
+				if u.Role == "staff" && u.ShopID != "" && u.ShopID != req.ShopID {
+					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "You are registered to a different Shop."})
+					return
+				}
+
+				// Verify shopName matches actual shop
+				shopValid := false
+				for _, s := range shopStorage {
+					if s.ShopID == req.ShopID && s.ShopName == req.ShopName {
+						shopValid = true
+						break
+					}
+				}
+				if !shopValid {
+					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Invalid Shop Name or ID."})
+					return
+				}
+
+				// Bind Staff to this Shop if it's their first time logging in
+				if u.Role == "staff" && u.ShopID == "" {
+					userStorage[i].ShopID = req.ShopID
+					u.ShopID = req.ShopID // update local copy to return in JSON
+					fmt.Printf("Notice: Bound Staff %s to Shop %s\n", u.Email, u.ShopID)
+				}
+
+				fmt.Printf("Login: %s (%s) at Shop %s\n", u.Email, u.Role, u.ShopID)
 				sendJSON(w, http.StatusOK, map[string]interface{}{"message": "Welcome!", "user": u})
 				return
 			}
@@ -154,9 +227,24 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	shopID := r.Header.Get("X-Shop-ID")
+	if shopID == "" && r.Method != "OPTIONS" {
+		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Shop ID header"})
+		return
+	}
+
 	// GET: Browser wants to SEE the list
 	if r.Method == "GET" {
-		sendJSON(w, http.StatusOK, productStorage)
+		var scopedProducts []Product
+		for _, p := range productStorage {
+			if p.ShopID == shopID {
+				scopedProducts = append(scopedProducts, p)
+			}
+		}
+		if scopedProducts == nil {
+			scopedProducts = []Product{}
+		}
+		sendJSON(w, http.StatusOK, scopedProducts)
 		return
 	}
 
@@ -169,6 +257,7 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		p.ID = nextProductID
+		p.ShopID = shopID
 		nextProductID++
 		productStorage = append(productStorage, p)
 
@@ -176,6 +265,7 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		if p.Stock > 0 {
 			historyStorage = append(historyStorage, StockHistory{
 				ID:          time.Now().UnixNano(),
+				ShopID:      shopID,
 				ProductID:   p.ID,
 				ProductName: p.Name,
 				Action:      "in",
@@ -186,12 +276,6 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		fmt.Println("--- Recent Inventory State ---")
-		for _, item := range productStorage {
-			fmt.Printf("ID: %d | Name: %-20s | Stock: %d | Category: %-15s | Vendor: %s\n", 
-				item.ID, item.Name, item.Stock, item.Category, item.Vendor)
-		}
-		fmt.Println("-------------------------------")
 		sendJSON(w, http.StatusCreated, p)
 		return
 	}
@@ -209,6 +293,12 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	shopID := r.Header.Get("X-Shop-ID")
+	if shopID == "" {
+		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Shop ID header"})
+		return
+	}
+
 	var req struct {
 		ProductID   int    `json:"productId"`
 		Action      string `json:"action"` // "in" or "out"
@@ -221,17 +311,17 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the product in our storage
+	// Find the product in our storage scoped to ShopID
 	var product *Product
 	for i := range productStorage {
-		if productStorage[i].ID == req.ProductID {
+		if productStorage[i].ID == req.ProductID && productStorage[i].ShopID == shopID {
 			product = &productStorage[i]
 			break
 		}
 	}
 
 	if product == nil {
-		sendJSON(w, http.StatusNotFound, map[string]string{"message": "Product not found"})
+		sendJSON(w, http.StatusNotFound, map[string]string{"message": "Product not found in this shop"})
 		return
 	}
 
@@ -253,6 +343,7 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 	// Add to history list
 	historyStorage = append(historyStorage, StockHistory{
 		ID:          time.Now().UnixNano(),
+		ShopID:      shopID,
 		ProductID:   req.ProductID,
 		ProductName: product.Name,
 		Action:      req.Action,
@@ -262,7 +353,7 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		Notes:       req.Reason,
 	})
 
-	fmt.Printf("Stock Update: %s %s %d (New Stock: %d)\n", product.Name, req.Action, req.Quantity, product.Stock)
+	fmt.Printf("Stock Update (Shop %s): %s %s %d (New Stock: %d)\n", shopID, product.Name, req.Action, req.Quantity, product.Stock)
 	sendJSON(w, http.StatusOK, map[string]interface{}{"message": "Stock updated!", "product": product})
 }
 
@@ -276,7 +367,23 @@ func historyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendJSON(w, http.StatusOK, historyStorage)
+	shopID := r.Header.Get("X-Shop-ID")
+	if shopID == "" {
+		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Shop ID header"})
+		return
+	}
+
+	var scopedHistory []StockHistory
+	for _, h := range historyStorage {
+		if h.ShopID == shopID {
+			scopedHistory = append(scopedHistory, h)
+		}
+	}
+	if scopedHistory == nil {
+		scopedHistory = []StockHistory{}
+	}
+
+	sendJSON(w, http.StatusOK, scopedHistory)
 }
 
 // ============================================================================
@@ -297,5 +404,7 @@ func main() {
 	// 'nil' means it will use the default ServeMux (router) which we configured with http.HandleFunc.
 	fmt.Println("Server started at http://localhost:8080")
 	fmt.Println("Routes: /signup, /login, /products, /stock, /history")
-	http.ListenAndServe(":8080", nil)
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		fmt.Printf("Server failed to start: %v\n", err)
+	}
 }

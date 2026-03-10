@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 
 export default function AddProduct() {
-    const { addProduct } = useApp();
+    const { addProduct, currentUser } = useApp();
     const navigate = useNavigate();
     const [msg, setMsg] = useState(null);
 
@@ -21,6 +21,19 @@ export default function AddProduct() {
         e.target.reset();
         setTimeout(() => { setMsg(null); navigate("/dashboard/products"); }, 1500);
     };
+
+    if (currentUser?.role !== "owner") {
+        return (
+            <div className="card">
+                <div className="card-header">
+                    <h2 className="card-title" style={{ color: "var(--danger)" }}>Access Denied</h2>
+                </div>
+                <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>
+                    <p style={{ fontSize: "16px" }}>You do not have permission to add new products. Only Owners can perform this action.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="card">
