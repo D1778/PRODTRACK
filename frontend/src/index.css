@@ -46,7 +46,7 @@
 }
 
 body {
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'JetBrains Mono', monospace;
   background: var(--light-bg);
   color: var(--text-primary);
   line-height: 1.6;
@@ -66,7 +66,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'JetBrains Mono', monospace;
   text-decoration: none;
 }
 
@@ -77,13 +77,13 @@ body {
 .btn-primary {
   background: var(--primary);
   color: white;
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 4px 16px rgba(158, 127, 91, 0.35);
 }
 
 .btn-primary:hover {
   background: var(--primary-dark);
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(79, 70, 229, 0.4);
+  box-shadow: 0 6px 24px rgba(158, 127, 91, 0.4);
 }
 
 .btn-success {
@@ -109,7 +109,7 @@ body {
 
 .btn-ghost:hover {
   border-color: var(--primary);
-  background: rgba(79, 70, 229, 0.06);
+  background: rgba(158, 127, 91, 0.06);
   color: var(--primary);
 }
 
@@ -139,14 +139,14 @@ body {
   font-size: 15px;
   background: var(--light-surface);
   color: var(--text-primary);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'JetBrains Mono', monospace;
   transition: all 0.3s ease;
 }
 
 .form-control:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.08);
+  box-shadow: 0 0 0 4px rgba(158, 127, 91, 0.08);
 }
 
 .form-control::placeholder {
@@ -288,13 +288,13 @@ textarea.form-control {
 }
 
 .logo {
+  font-family: 'JetBrains Mono', monospace;
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 800;
   background: var(--gradient-1);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-family: 'JetBrains Mono', monospace;
   cursor: pointer;
   text-decoration: none;
 }
@@ -359,7 +359,7 @@ textarea.form-control {
   right: -20%;
   width: 1000px;
   height: 1000px;
-  background: radial-gradient(circle, rgba(79, 70, 229, 0.07) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(158, 127, 91, 0.07) 0%, transparent 70%);
   border-radius: 50%;
   animation: pulse 6s ease-in-out infinite;
 }
@@ -378,8 +378,8 @@ textarea.form-control {
 .hero-badge {
   display: inline-block;
   padding: 8px 20px;
-  background: rgba(79, 70, 229, 0.08);
-  border: 1px solid rgba(79, 70, 229, 0.2);
+  background: rgba(158, 127, 91, 0.08);
+  border: 1px solid rgba(158, 127, 91, 0.2);
   border-radius: 30px;
   color: var(--primary);
   font-size: 14px;
@@ -473,7 +473,6 @@ textarea.form-control {
 .stat-value {
   font-size: 32px;
   font-weight: 700;
-  font-family: 'JetBrains Mono', monospace;
   color: var(--text-primary);
 }
 
@@ -537,7 +536,7 @@ textarea.form-control {
 .feature-card:hover {
   transform: translateY(-8px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-  border-color: rgba(79, 70, 229, 0.25);
+  border-color: rgba(158, 127, 91, 0.25);
 }
 
 .feature-icon {
@@ -583,7 +582,7 @@ textarea.form-control {
 .benefit-icon {
   width: 48px;
   height: 48px;
-  background: rgba(79, 70, 229, 0.08);
+  background: rgba(158, 127, 91, 0.08);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -669,7 +668,7 @@ textarea.form-control {
   transform: translate(-50%, -50%);
   width: 800px;
   height: 800px;
-  background: radial-gradient(circle, rgba(79, 70, 229, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(158, 127, 91, 0.06) 0%, transparent 70%);
   border-radius: 50%;
 }
 
@@ -728,7 +727,6 @@ textarea.form-control {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-family: 'JetBrains Mono', monospace;
   margin-bottom: 16px;
 }
 
@@ -784,7 +782,7 @@ textarea.form-control {
   right: -20%;
   width: 800px;
   height: 800px;
-  background: radial-gradient(circle, rgba(79, 70, 229, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(158, 127, 91, 0.06) 0%, transparent 70%);
   border-radius: 50%;
   animation: pulse 4s ease-in-out infinite;
 }
@@ -808,14 +806,14 @@ textarea.form-control {
 }
 
 .auth-logo h1 {
+  font-family: 'JetBrains Mono', monospace;
   font-size: 36px;
-  font-weight: 700;
+  font-weight: 800;
   background: var(--gradient-1);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin-bottom: 8px;
-  font-family: 'JetBrains Mono', monospace;
   cursor: pointer;
   display: inline-block;
   transition: transform 0.3s ease;
@@ -860,22 +858,50 @@ textarea.form-control {
   position: fixed;
   height: 100vh;
   border-right: 1px solid var(--border);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  transition: transform 0.3s ease;
 }
 
 .sidebar-header {
-  padding: 32px 24px;
+  padding: 24px;
   border-bottom: 1px solid var(--border);
 }
 
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-toggle {
+  background: rgba(158, 127, 91, 0.1);
+  color: var(--primary);
+  border: none;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.sidebar-toggle:hover {
+  background: var(--primary);
+  color: white;
+}
+
 .sidebar-logo {
+  font-family: 'JetBrains Mono', monospace;
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 800;
   background: var(--gradient-1);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-family: 'JetBrains Mono', monospace;
 }
 
 .sidebar-subtitle {
@@ -886,6 +912,42 @@ textarea.form-control {
 
 .nav-menu {
   padding: 24px 12px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-footer {
+  padding: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.back-home {
+  background: rgba(158, 127, 91, 0.05);
+  color: var(--primary) !important;
+  margin-bottom: 0 !important;
+}
+
+.back-home:hover {
+  background: rgba(158, 127, 91, 0.1) !important;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 999;
 }
 
 .nav-item {
@@ -896,7 +958,7 @@ textarea.form-control {
   align-items: center;
   gap: 14px;
   color: var(--text-secondary);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   border-radius: 12px;
   margin-bottom: 4px;
@@ -911,7 +973,7 @@ textarea.form-control {
 }
 
 .nav-item.active {
-  background: rgba(79, 70, 229, 0.08);
+  background: rgba(158, 127, 91, 0.08);
   color: var(--primary);
 }
 
@@ -927,10 +989,52 @@ textarea.form-control {
   border-radius: 0 4px 4px 0;
 }
 
+.sidebar.collapsed {
+  width: 80px;
+}
+
+.sidebar.collapsed .sidebar-subtitle,
+.sidebar.collapsed .nav-item span:not(.nav-icon) {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-header {
+  padding: 24px 10px;
+  text-align: center;
+}
+
+.sidebar.collapsed .header-top {
+  justify-content: center;
+}
+
 .main-content {
   margin-left: 280px;
   flex: 1;
   background: var(--light-bg);
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 80px;
+}
+
+.mobile-toggle {
+  display: flex;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1100;
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(158, 127, 91, 0.3);
 }
 
 .top-bar {
@@ -947,9 +1051,11 @@ textarea.form-control {
 }
 
 .page-title {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .top-bar-right {
@@ -1053,9 +1159,8 @@ textarea.form-control {
 }
 
 .summary-value {
-  font-size: 40px;
+  font-size: 24px;
   font-weight: 700;
-  font-family: 'JetBrains Mono', monospace;
   color: var(--text-primary);
 }
 
@@ -1076,9 +1181,11 @@ textarea.form-control {
 }
 
 .card-title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ─── TABLES ─── */
@@ -1177,12 +1284,12 @@ tbody tr:last-child td {
 
 .action-option:hover {
   border-color: var(--primary);
-  background: rgba(79, 70, 229, 0.03);
+  background: rgba(158, 127, 91, 0.03);
 }
 
 .action-option.selected {
   border-color: var(--primary);
-  background: rgba(79, 70, 229, 0.06);
+  background: rgba(158, 127, 91, 0.06);
 }
 
 .action-option h3 {
@@ -1233,11 +1340,23 @@ tbody tr:last-child td {
   }
 
   .sidebar {
-    display: none;
+    transform: translateX(-100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
   }
 
   .main-content {
     margin-left: 0;
+  }
+
+  .sidebar-overlay {
+    display: block;
+  }
+
+  .top-bar {
+    padding-left: 80px;
   }
 
   .footer-grid {

@@ -8,15 +8,26 @@ export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [products, setProducts] = useState([]);
   const [stockHistory, setStockHistory] = useState([]);
+  const [staffMembers, setStaffMembers] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [salesAnalytics, setSalesAnalytics] = useState([]);
+
+  // Helper for headers
+  const getHeaders = () => {
+    const userStr = localStorage.getItem("user");
+    const storedUser = userStr ? JSON.parse(userStr) : {};
+    return {
+      "Content-Type": "application/json",
+      "X-Business-Password": storedUser.businessPassword || storedUser.shopId || "",
+      "X-User-Role": storedUser.role || ""
+    };
+  };
 
   // Fetch products from backend
   const fetchProducts = async () => {
     try {
-      const userStr = localStorage.getItem("user");
-      const storedUser = userStr ? JSON.parse(userStr) : {};
-
       const res = await fetch(`${API_URL}/products`, {
-        headers: { "X-Shop-ID": storedUser.shopId || "" }
+        headers: getHeaders()
       });
       if (res.ok) {
         const data = await res.json();
@@ -32,11 +43,8 @@ export function AppProvider({ children }) {
   // Fetch history from backend
   const fetchHistory = async () => {
     try {
-      const userStr = localStorage.getItem("user");
-      const storedUser = userStr ? JSON.parse(userStr) : {};
-
       const res = await fetch(`${API_URL}/history`, {
-        headers: { "X-Shop-ID": storedUser.shopId || "" }
+        headers: getHeaders()
       });
       if (res.ok) {
         const data = await res.json();
@@ -49,30 +57,80 @@ export function AppProvider({ children }) {
     }
   };
 
+  const fetchStaffMembers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/staff`, {
+        headers: getHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStaffMembers(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch staff:", err);
+    }
+  };
+
+  const fetchBills = async () => {
+    try {
+      const res = await fetch(`${API_URL}/billing`, {
+        headers: getHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBills(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch bills:", err);
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      const res = await fetch(`${API_URL}/analytics`, {
+        headers: getHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSalesAnalytics(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch analytics:", err);
+    }
+  };
+
   // Load data on mount
   useEffect(() => {
-    fetchProducts();
-    fetchHistory();
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
+    const storedUserStr = localStorage.getItem("user");
+    if (storedUserStr) {
+      const storedUser = JSON.parse(storedUserStr);
+      setCurrentUser(storedUser);
+      refreshData(storedUser);
     }
   }, []);
 
-  const signup = async (name, email, password, role, shopName, shopId) => {
+  const refreshData = async (user) => {
+    if (!user) return;
+    await fetchProducts();
+    await fetchHistory();
+    if (user.role === "owner") {
+      await fetchStaffMembers();
+      await fetchAnalytics();
+    }
+    await fetchBills();
+  };
+
+  const signup = async (name, email, password, role, businessName, businessPassword) => {
     try {
       const res = await fetch(`${API_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role, shopName, shopId }),
+        body: JSON.stringify({ name, email, password, role, businessName, businessPassword }),
       });
       const data = await res.json();
 
       if (res.status === 409) {
-        return { success: false, message: data.message || "Email or Shop ID already registered" };
-      }
-      if (res.status === 404) {
-        return { success: false, message: data.message || "Shop not found" };
+        return { success: false, message: data.message || "Email or Business Password already registered" };
       }
       if (!res.ok) {
         return { success: false, message: data.message || "Signup failed" };
@@ -81,21 +139,21 @@ export function AppProvider({ children }) {
       return { success: true, message: data.message || "Account created successfully!" };
     } catch (err) {
       console.error("Signup error:", err);
-      return { success: false, message: "Cannot connect to server. Is the backend running?" };
+      return { success: false, message: "Cannot connect to server." };
     }
   };
 
-  const login = async (email, password, shopName, shopId) => {
+  const login = async (email, password, businessName, businessPassword) => {
     try {
       const res = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, shopName, shopId }),
+        body: JSON.stringify({ email, password, businessName, businessPassword }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        return { success: false, message: data.message || "Invalid credentials or Shop ID" };
+        return { success: false, message: data.message || "Invalid credentials or Business Password" };
       }
 
       const user = data.user;
@@ -103,14 +161,12 @@ export function AppProvider({ children }) {
       localStorage.setItem("user", JSON.stringify(user));
       localStorage.setItem("isLoggedIn", "true");
 
-      // Refresh data after login
-      await fetchProducts();
-      await fetchHistory();
+      await refreshData(user);
 
       return { success: true, message: "Login successful", user };
     } catch (err) {
       console.error("Login error:", err);
-      return { success: false, message: "Cannot connect to server. Is the backend running?" };
+      return { success: false, message: "Cannot connect to server." };
     }
   };
 
@@ -122,14 +178,13 @@ export function AppProvider({ children }) {
 
   const addProduct = async (product) => {
     try {
-      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       const res = await fetch(`${API_URL}/products`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shop-ID": storedUser.shopId || ""
-        },
-        body: JSON.stringify(product),
+        headers: getHeaders(),
+        body: JSON.stringify({
+          ...product,
+          performedBy: currentUser?.name || "Unknown"
+        }),
       });
 
       if (!res.ok) {
@@ -138,35 +193,48 @@ export function AppProvider({ children }) {
       }
 
       const newProduct = await res.json();
-
-      // Refresh local state to ensure sync
       await fetchProducts();
       await fetchHistory();
 
       return { success: true, product: newProduct };
     } catch (err) {
       console.error("Add product error:", err);
-      return { success: false, message: "Cannot connect to server. Is the backend running?" };
+      return { success: false, message: "Cannot connect to server." };
+    }
+  };
+
+  const deleteProduct = async (productId) => {
+    try {
+      const res = await fetch(`${API_URL}/products`, {
+        method: "DELETE",
+        headers: getHeaders(),
+        body: JSON.stringify({ id: productId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        return { success: false, message: data.message || "Failed to delete product" };
+      }
+      await fetchProducts();
+      return { success: true, message: "Product deleted successfully" };
+    } catch (err) {
+      console.error("Error deleting product:", err);
+      return { success: false, message: "Cannot connect to server." };
     }
   };
 
   const updateStock = async (productId, action, quantity, reason) => {
     try {
-      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       const payload = {
         productId,
         action,
         quantity,
         reason,
-        performedBy: currentUser?.name || storedUser.name || "Unknown"
+        performedBy: currentUser?.name || "Unknown"
       };
 
       const res = await fetch(`${API_URL}/stock`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shop-ID": storedUser.shopId || ""
-        },
+        headers: getHeaders(),
         body: JSON.stringify(payload)
       });
 
@@ -176,15 +244,75 @@ export function AppProvider({ children }) {
         return { success: false, message: data.message || "Stock update failed" };
       }
 
-      // Refresh data
       await fetchProducts();
       await fetchHistory();
 
       return { success: true, message: data.message };
-
     } catch (err) {
       console.error("Stock update error:", err);
       return { success: false, message: "Cannot connect to server" };
+    }
+  };
+
+  const addStaffMember = async (staffData) => {
+    try {
+      const res = await fetch(`${API_URL}/staff`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(staffData)
+      });
+      if (res.ok) {
+        await fetchStaffMembers();
+        return { success: true, message: "Staff member added successfully" };
+      }
+      const data = await res.json();
+      return { success: false, message: data.message };
+    } catch (err) {
+      console.error("Error adding staff:", err);
+      return { success: false, message: "Server error" };
+    }
+  };
+
+  const removeStaffMember = async (email) => {
+    try {
+      const res = await fetch(`${API_URL}/staff`, {
+        method: "DELETE",
+        headers: getHeaders(),
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        return { success: false, message: data.message || "Failed to remove staff member" };
+      }
+      await fetchStaffMembers();
+      return { success: true, message: "Staff member removed successfully" };
+    } catch (err) {
+      console.error("Error removing staff:", err);
+      return { success: false, message: "Cannot connect to server." };
+    }
+  };
+
+  const createBill = async (billData) => {
+    try {
+      const res = await fetch(`${API_URL}/billing`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          ...billData,
+          createdBy: currentUser?.name || "Unknown"
+        })
+      });
+      if (res.ok) {
+        await fetchProducts(); // Refresh stock
+        await fetchHistory();
+        await fetchBills();
+        if (currentUser?.role === "owner") await fetchAnalytics();
+        return { success: true };
+      }
+      const data = await res.json();
+      return { success: false, message: data.message };
+    } catch (err) {
+      return { success: false, message: "Server error" };
     }
   };
 
@@ -194,13 +322,19 @@ export function AppProvider({ children }) {
         currentUser,
         products,
         stockHistory,
+        staffMembers,
+        bills,
+        salesAnalytics,
         login,
         signup,
         logout,
         addProduct,
+        deleteProduct,
         updateStock,
-        fetchProducts,
-        fetchHistory
+        addStaffMember,
+        removeStaffMember,
+        createBill,
+        refreshData
       }}
     >
       {children}

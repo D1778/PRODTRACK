@@ -22,8 +22,8 @@ export default function Signup() {
       e.target.email.value,
       e.target.password.value,
       role,
-      role === "owner" ? e.target.shopName.value : "",
-      role === "owner" ? e.target.shopId.value : ""
+      role === "owner" ? e.target.businessName.value : "",
+      role === "owner" ? e.target.businessPassword.value : ""
     );
     setLoading(false);
 
@@ -70,12 +70,12 @@ export default function Signup() {
           {selectedRole === "owner" && (
             <>
               <div className="form-group">
-                <label className="form-label">Shop Name</label>
-                <input type="text" name="shopName" className="form-control" placeholder="e.g. My Awesome Shop" required />
+                <label className="form-label">Business Name</label>
+                <input type="text" name="businessName" className="form-control" placeholder="e.g. My Awesome Business" required />
               </div>
               <div className="form-group">
-                <label className="form-label">Shop ID Number</label>
-                <input type="text" name="shopId" className="form-control" placeholder="e.g. SHP001" required />
+                <label className="form-label">Business Password</label>
+                <input type="password" name="businessPassword" className="form-control" placeholder="Create a business password" required />
               </div>
             </>
           )}

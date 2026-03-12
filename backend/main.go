@@ -14,40 +14,59 @@ import (
 // ============================================================================
 
 type User struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
-	ShopID   string `json:"shopId"`
+	Name             string `json:"name"`
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	Role             string `json:"role"`
+	BusinessPassword string `json:"businessPassword"`
+	BusinessName     string `json:"businessName"`
 }
 
-type Shop struct {
-	ShopID     string `json:"shopId"`
-	ShopName   string `json:"shopName"`
-	OwnerEmail string `json:"ownerEmail"`
+type Business struct {
+	BusinessPassword string `json:"businessPassword"`
+	BusinessName     string `json:"businessName"`
+	OwnerEmail       string `json:"ownerEmail"`
 }
 
 type Product struct {
-	ID           int    `json:"id"`
-	ShopID       string `json:"shopId"`
-	Name         string `json:"name"`
-	Category     string `json:"category"`
-	Stock        int    `json:"stock"`
-	MinThreshold int    `json:"minThreshold"`
-	Vendor       string `json:"vendor"`
-	Notes        string `json:"notes"`
+	ID               int     `json:"id"`
+	BusinessPassword string  `json:"businessPassword"`
+	Name             string  `json:"name"`
+	Category         string  `json:"category"`
+	Price            float64 `json:"price"`
+	Stock            int     `json:"stock"`
+	MinThreshold     int     `json:"minThreshold"`
+	Vendor           string  `json:"vendor"`
+	Notes            string  `json:"notes"`
+	PerformedBy      string  `json:"performedBy"`
 }
 
 type StockHistory struct {
-	ID          int64  `json:"id"`
-	ShopID      string `json:"shopId"`
-	ProductID   int    `json:"productId"`
-	ProductName string `json:"productName"`
-	Action      string `json:"action"` // "in" (stock added) or "out" (stock removed)
-	Quantity    int    `json:"quantity"`
-	PerformedBy string `json:"performedBy"`
-	Timestamp   string `json:"timestamp"`
-	Notes       string `json:"notes"`
+	ID               int64  `json:"id"`
+	BusinessPassword string `json:"businessPassword"`
+	ProductID        int    `json:"productId"`
+	ProductName      string `json:"productName"`
+	Action           string `json:"action"` // "in" (stock added) or "out" (stock removed)
+	Quantity         int    `json:"quantity"`
+	PerformedBy      string `json:"performedBy"`
+	Timestamp        string `json:"timestamp"`
+	Notes            string `json:"notes"`
+}
+
+type BillItem struct {
+	ProductID   int     `json:"productId"`
+	ProductName string  `json:"productName"`
+	Quantity    int     `json:"quantity"`
+	Price       float64 `json:"price"`
+}
+
+type Bill struct {
+	ID               int64      `json:"id"`
+	BusinessPassword string     `json:"businessPassword"`
+	Items            []BillItem `json:"items"`
+	TotalAmount      float64    `json:"totalAmount"`
+	CreatedBy        string     `json:"createdBy"`
+	Timestamp        string     `json:"timestamp"`
 }
 
 // ============================================================================
@@ -57,11 +76,12 @@ type StockHistory struct {
 // ============================================================================
 
 var (
-	userStorage    = []User{}
-	shopStorage    = []Shop{}
-	nextProductID  = 1
-	productStorage = []Product{}
-	historyStorage = []StockHistory{}
+	userStorage     = []User{}
+	businessStorage = []Business{}
+	nextProductID   = 1
+	productStorage  = []Product{}
+	historyStorage  = []StockHistory{}
+	billStorage     = []Bill{}
 )
 
 // ============================================================================
@@ -81,11 +101,9 @@ func sendJSON(w http.ResponseWriter, status int, data interface{}) {
 // If the browser asks "Are you allowed to talk to me?", we say "Yes".
 func handleCORS(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Shop-ID")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Business-Password, X-User-Role")
 
-	// If the browser sends an "OPTIONS" request, it's just checking permissions.
-	// we stop here and return 'true' to indicate we handled it.
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
 		return true
@@ -112,25 +130,23 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	// 1. SIGNUP LOGIC
 	if r.URL.Path == "/signup" {
 		var req struct {
-			Name     string `json:"name"`
-			Email    string `json:"email"`
-			Password string `json:"password"`
-			Role     string `json:"role"`
-			ShopID   string `json:"shopId"`
-			ShopName string `json:"shopName"`
+			Name             string `json:"name"`
+			Email            string `json:"email"`
+			Password         string `json:"password"`
+			Role             string `json:"role"`
+			BusinessPassword string `json:"businessPassword"`
+			BusinessName     string `json:"businessName"`
 		}
-		// Decode the JSON coming from the browser
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
 			return
 		}
 
-		if req.Role == "owner" && (req.ShopID == "" || req.ShopName == "") {
-			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Shop Name and ID are required for Owners"})
+		if req.Role == "owner" && (req.BusinessPassword == "" || req.BusinessName == "") {
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Business Name and Password are required for Owners"})
 			return
 		}
 
-		// Check if email already exists
 		for _, u := range userStorage {
 			if u.Email == req.Email {
 				sendJSON(w, http.StatusConflict, map[string]string{"message": "Email already registered"})
@@ -139,39 +155,38 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if req.Role == "owner" {
-			// Ensure ShopID is unique globally
-			for _, s := range shopStorage {
-				if s.ShopID == req.ShopID {
-					sendJSON(w, http.StatusConflict, map[string]string{"message": "Shop ID already exists"})
+			for _, s := range businessStorage {
+				if s.BusinessPassword == req.BusinessPassword {
+					sendJSON(w, http.StatusConflict, map[string]string{"message": "Business Password already exists"})
 					return
 				}
 			}
-			shopStorage = append(shopStorage, Shop{
-				ShopID:     req.ShopID,
-				ShopName:   req.ShopName,
-				OwnerEmail: req.Email,
+			businessStorage = append(businessStorage, Business{
+				BusinessPassword: req.BusinessPassword,
+				BusinessName:     req.BusinessName,
+				OwnerEmail:       req.Email,
 			})
 		}
 
 		newUser := User{
-			Name:     req.Name,
-			Email:    req.Email,
-			Password: req.Password,
-			Role:     req.Role,
-			ShopID:   req.ShopID,
+			Name:             req.Name,
+			Email:            req.Email,
+			Password:         req.Password,
+			Role:             req.Role,
+			BusinessPassword: req.BusinessPassword,
+			BusinessName:     req.BusinessName,
 		}
 		userStorage = append(userStorage, newUser)
 
-		fmt.Printf("User Created: %s (%s) for Shop: %s\n", newUser.Email, newUser.Role, newUser.ShopID)
+		fmt.Printf("User Created: %s (%s) for Business Password: %s\n", newUser.Email, newUser.Role, newUser.BusinessPassword)
 		sendJSON(w, http.StatusCreated, map[string]string{"message": "Success!"})
 
-		// 2. LOGIN LOGIC
 	} else if r.URL.Path == "/login" {
 		var req struct {
-			Email    string `json:"email"`
-			Password string `json:"password"`
-			ShopID   string `json:"shopId"`
-			ShopName string `json:"shopName"`
+			Email            string `json:"email"`
+			Password         string `json:"password"`
+			BusinessPassword string `json:"businessPassword"`
+			BusinessName     string `json:"businessName"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
@@ -180,39 +195,40 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 		for i, u := range userStorage {
 			if u.Email == req.Email && u.Password == req.Password {
-
-				// Owners must match their created ShopID immediately.
-				// Staff might have an empty ShopID if this is their first login.
-				if u.Role == "owner" && u.ShopID != req.ShopID {
-					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Incorrect Shop ID for this Owner account"})
+				if u.Role == "owner" && u.BusinessPassword != req.BusinessPassword {
+					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Incorrect Business Password for this Owner account"})
 					return
 				}
-				if u.Role == "staff" && u.ShopID != "" && u.ShopID != req.ShopID {
-					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "You are registered to a different Shop."})
+				if u.Role == "staff" && u.BusinessPassword != "" && u.BusinessPassword != req.BusinessPassword {
+					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "You are registered to a different Business."})
 					return
 				}
 
-				// Verify shopName matches actual shop
-				shopValid := false
-				for _, s := range shopStorage {
-					if s.ShopID == req.ShopID && s.ShopName == req.ShopName {
-						shopValid = true
+				// Find the real business name from system storage to be 100% accurate
+				var systemBusinessName string
+				for _, s := range businessStorage {
+					if s.BusinessPassword == req.BusinessPassword {
+						systemBusinessName = s.BusinessName
 						break
 					}
 				}
-				if !shopValid {
-					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Invalid Shop Name or ID."})
-					return
+
+				// If system has a name, use it; otherwise fallback to request
+				if systemBusinessName != "" {
+					userStorage[i].BusinessName = systemBusinessName
+				} else {
+					userStorage[i].BusinessName = req.BusinessName
 				}
 
-				// Bind Staff to this Shop if it's their first time logging in
-				if u.Role == "staff" && u.ShopID == "" {
-					userStorage[i].ShopID = req.ShopID
-					u.ShopID = req.ShopID // update local copy to return in JSON
-					fmt.Printf("Notice: Bound Staff %s to Shop %s\n", u.Email, u.ShopID)
+				if u.Role == "staff" && u.BusinessPassword == "" {
+					userStorage[i].BusinessPassword = req.BusinessPassword
+					fmt.Printf("Notice: Bound Staff %s to Business Password %s (%s)\n", u.Email, req.BusinessPassword, userStorage[i].BusinessName)
 				}
+				
+				// Return the most up-to-date user object from our storage
+				u = userStorage[i]
 
-				fmt.Printf("Login: %s (%s) at Shop %s\n", u.Email, u.Role, u.ShopID)
+				fmt.Printf("Login: %s (%s) at Business Password %s (%s)\n", u.Email, u.Role, u.BusinessPassword, u.BusinessName)
 				sendJSON(w, http.StatusOK, map[string]interface{}{"message": "Welcome!", "user": u})
 				return
 			}
@@ -227,17 +243,16 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shopID := r.Header.Get("X-Shop-ID")
-	if shopID == "" && r.Method != "OPTIONS" {
-		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Shop ID header"})
+	businessPassword := r.Header.Get("X-Business-Password")
+	if businessPassword == "" && r.Method != "OPTIONS" {
+		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Business Password header"})
 		return
 	}
 
-	// GET: Browser wants to SEE the list
 	if r.Method == "GET" {
 		var scopedProducts []Product
 		for _, p := range productStorage {
-			if p.ShopID == shopID {
+			if p.BusinessPassword == businessPassword {
 				scopedProducts = append(scopedProducts, p)
 			}
 		}
@@ -248,8 +263,19 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// For administrative actions (POST), check if the user is an owner
+	// Note: In a real app, we'd verify the user's role from a token.
+	// For this local demo, we'll look at the request header or body if needed.
+	// But let's simplify and check if the role is 'owner' from a custom header
+	userRole := r.Header.Get("X-User-Role")
+
 	// POST: Browser wants to ADD a new product
 	if r.Method == "POST" {
+		if userRole != "owner" && userRole != "staff" {
+			sendJSON(w, http.StatusForbidden, map[string]string{"message": "Unauthorized role"})
+			return
+		}
+
 		var p Product
 		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
@@ -257,22 +283,21 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		p.ID = nextProductID
-		p.ShopID = shopID
+		p.BusinessPassword = businessPassword
 		nextProductID++
 		productStorage = append(productStorage, p)
 
-		// Optionally add initial stock to history if stock > 0
 		if p.Stock > 0 {
 			historyStorage = append(historyStorage, StockHistory{
-				ID:          time.Now().UnixNano(),
-				ShopID:      shopID,
-				ProductID:   p.ID,
-				ProductName: p.Name,
-				Action:      "in",
-				Quantity:    p.Stock,
-				PerformedBy: "System",
-				Timestamp:   time.Now().Format(time.RFC3339),
-				Notes:       "Initial stock",
+				ID:               time.Now().UnixNano(),
+				BusinessPassword: businessPassword,
+				ProductID:        p.ID,
+				ProductName:      p.Name,
+				Action:           "in",
+				Quantity:         p.Stock,
+				PerformedBy:      p.PerformedBy,
+				Timestamp:        time.Now().Format(time.RFC3339),
+				Notes:            "Initial stock",
 			})
 		}
 
@@ -280,7 +305,33 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Please use GET or POST"})
+	// DELETE: Remove a product
+	if r.Method == "DELETE" {
+		if userRole != "owner" && userRole != "staff" {
+			sendJSON(w, http.StatusForbidden, map[string]string{"message": "Unauthorized role"})
+			return
+		}
+
+		var req struct {
+			ID int `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
+			return
+		}
+
+		for i, p := range productStorage {
+			if p.ID == req.ID && p.BusinessPassword == businessPassword {
+				productStorage = append(productStorage[:i], productStorage[i+1:]...)
+				sendJSON(w, http.StatusOK, map[string]string{"message": "Product deleted"})
+				return
+			}
+		}
+		sendJSON(w, http.StatusNotFound, map[string]string{"message": "Product not found"})
+		return
+	}
+
+	sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Please use GET, POST, or DELETE"})
 }
 
 // stockHandler handles changing the stock count
@@ -293,9 +344,11 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shopID := r.Header.Get("X-Shop-ID")
-	if shopID == "" {
-		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Shop ID header"})
+	businessPassword := r.Header.Get("X-Business-Password")
+	userRole := r.Header.Get("X-User-Role")
+
+	if businessPassword == "" {
+		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Business Password header"})
 		return
 	}
 
@@ -311,17 +364,23 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the product in our storage scoped to ShopID
+	// Only owners and staff can add stock ("in")
+	if req.Action == "in" && userRole != "owner" && userRole != "staff" {
+		sendJSON(w, http.StatusForbidden, map[string]string{"message": "Unauthorized role"})
+		return
+	}
+
+	// Find the product in our storage scoped to BusinessID
 	var product *Product
 	for i := range productStorage {
-		if productStorage[i].ID == req.ProductID && productStorage[i].ShopID == shopID {
+		if productStorage[i].ID == req.ProductID && productStorage[i].BusinessPassword == businessPassword {
 			product = &productStorage[i]
 			break
 		}
 	}
 
 	if product == nil {
-		sendJSON(w, http.StatusNotFound, map[string]string{"message": "Product not found in this shop"})
+		sendJSON(w, http.StatusNotFound, map[string]string{"message": "Product not found in this business"})
 		return
 	}
 
@@ -342,8 +401,8 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Add to history list
 	historyStorage = append(historyStorage, StockHistory{
-		ID:          time.Now().UnixNano(),
-		ShopID:      shopID,
+		ID:               time.Now().UnixNano(),
+		BusinessPassword: businessPassword,
 		ProductID:   req.ProductID,
 		ProductName: product.Name,
 		Action:      req.Action,
@@ -353,7 +412,7 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		Notes:       req.Reason,
 	})
 
-	fmt.Printf("Stock Update (Shop %s): %s %s %d (New Stock: %d)\n", shopID, product.Name, req.Action, req.Quantity, product.Stock)
+	fmt.Printf("Stock Update (Business Password %s): %s %s %d (New Stock: %d)\n", businessPassword, product.Name, req.Action, req.Quantity, product.Stock)
 	sendJSON(w, http.StatusOK, map[string]interface{}{"message": "Stock updated!", "product": product})
 }
 
@@ -367,15 +426,15 @@ func historyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shopID := r.Header.Get("X-Shop-ID")
-	if shopID == "" {
-		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Shop ID header"})
+	businessPassword := r.Header.Get("X-Business-Password")
+	if businessPassword == "" {
+		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Business Password header"})
 		return
 	}
 
 	var scopedHistory []StockHistory
 	for _, h := range historyStorage {
-		if h.ShopID == shopID {
+		if h.BusinessPassword == businessPassword {
 			scopedHistory = append(scopedHistory, h)
 		}
 	}
@@ -384,6 +443,186 @@ func historyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendJSON(w, http.StatusOK, scopedHistory)
+}
+
+// staffHandler handles staff management (Owner only)
+func staffHandler(w http.ResponseWriter, r *http.Request) {
+	if handleCORS(w, r) {
+		return
+	}
+
+	businessPassword := r.Header.Get("X-Business-Password")
+	userRole := r.Header.Get("X-User-Role")
+
+	if userRole != "owner" {
+		sendJSON(w, http.StatusForbidden, map[string]string{"message": "Restricted to Owners"})
+		return
+	}
+
+	if r.Method == "GET" {
+		var scopedStaff []User
+		for _, u := range userStorage {
+			if u.BusinessPassword == businessPassword && u.Role == "staff" {
+				scopedStaff = append(scopedStaff, u)
+			}
+		}
+		if scopedStaff == nil {
+			scopedStaff = []User{}
+		}
+		sendJSON(w, http.StatusOK, scopedStaff)
+		return
+	}
+
+	if r.Method == "POST" {
+		var staff User
+		if err := json.NewDecoder(r.Body).Decode(&staff); err != nil {
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
+			return
+		}
+		staff.BusinessPassword = businessPassword
+		staff.Role = "staff"
+		userStorage = append(userStorage, staff)
+		sendJSON(w, http.StatusCreated, staff)
+		return
+	}
+
+	if r.Method == "DELETE" {
+		var req struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
+			return
+		}
+
+		for i, u := range userStorage {
+			if u.Email == req.Email && u.BusinessPassword == businessPassword && u.Role == "staff" {
+				userStorage = append(userStorage[:i], userStorage[i+1:]...)
+				sendJSON(w, http.StatusOK, map[string]string{"message": "Staff member removed"})
+				return
+			}
+		}
+		sendJSON(w, http.StatusNotFound, map[string]string{"message": "Staff member not found"})
+		return
+	}
+
+	sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Method not allowed"})
+}
+
+// billingHandler handles creating sales records (Staff and Owner)
+func billingHandler(w http.ResponseWriter, r *http.Request) {
+	if handleCORS(w, r) {
+		return
+	}
+
+	businessPassword := r.Header.Get("X-Business-Password")
+	if businessPassword == "" {
+		sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Missing Business Password"})
+		return
+	}
+
+	if r.Method == "POST" {
+		var bill Bill
+		if err := json.NewDecoder(r.Body).Decode(&bill); err != nil {
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
+			return
+		}
+
+		bill.ID = time.Now().UnixNano()
+		bill.BusinessPassword = businessPassword
+		bill.Timestamp = time.Now().Format(time.RFC3339)
+
+		for _, item := range bill.Items {
+			for i := range productStorage {
+				if productStorage[i].ID == item.ProductID && productStorage[i].BusinessPassword == businessPassword {
+					if productStorage[i].Stock < item.Quantity {
+						sendJSON(w, http.StatusBadRequest, map[string]string{"message": fmt.Sprintf("Out of stock: %s", item.ProductName)})
+						return
+					}
+					productStorage[i].Stock -= item.Quantity
+
+					historyStorage = append(historyStorage, StockHistory{
+						ID:               time.Now().UnixNano(),
+						BusinessPassword: businessPassword,
+						ProductID:   item.ProductID,
+						ProductName: item.ProductName,
+						Action:      "out",
+						Quantity:    item.Quantity,
+						PerformedBy: bill.CreatedBy,
+						Timestamp:   time.Now().Format(time.RFC3339),
+						Notes:       "Sold via billing",
+					})
+				}
+			}
+		}
+
+		billStorage = append(billStorage, bill)
+		sendJSON(w, http.StatusCreated, bill)
+		return
+	}
+
+	if r.Method == "GET" {
+		var scopedBills []Bill
+		for _, b := range billStorage {
+			if b.BusinessPassword == businessPassword {
+				scopedBills = append(scopedBills, b)
+			}
+		}
+		if scopedBills == nil {
+			scopedBills = []Bill{}
+		}
+		sendJSON(w, http.StatusOK, scopedBills)
+		return
+	}
+
+	sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Method not allowed"})
+}
+
+// analyticsHandler handles sales performance logic (Owner only)
+func analyticsHandler(w http.ResponseWriter, r *http.Request) {
+	if handleCORS(w, r) {
+		return
+	}
+
+	businessPassword := r.Header.Get("X-Business-Password")
+	userRole := r.Header.Get("X-User-Role")
+
+	if userRole != "owner" {
+		sendJSON(w, http.StatusForbidden, map[string]string{"message": "Restricted to Owners"})
+		return
+	}
+
+	if r.Method != "GET" {
+		sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Method not allowed"})
+		return
+	}
+
+	type DailySummary struct {
+		Date       string  `json:"date"`
+		TotalSales float64 `json:"totalSales"`
+		ItemsSold  int     `json:"itemsSold"`
+	}
+
+	summaries := make(map[string]*DailySummary)
+	for _, b := range billStorage {
+		if b.BusinessPassword == businessPassword {
+			date := b.Timestamp[:10]
+			if _, exists := summaries[date]; !exists {
+				summaries[date] = &DailySummary{Date: date}
+			}
+			summaries[date].TotalSales += b.TotalAmount
+			for _, item := range b.Items {
+				summaries[date].ItemsSold += item.Quantity
+			}
+		}
+	}
+
+	result := []DailySummary{}
+	for _, s := range summaries {
+		result = append(result, *s)
+	}
+
+	sendJSON(w, http.StatusOK, result)
 }
 
 // ============================================================================
@@ -397,6 +636,9 @@ func main() {
 	http.HandleFunc("/products", productsHandler)
 	http.HandleFunc("/stock", stockHandler)
 	http.HandleFunc("/history", historyHandler)
+	http.HandleFunc("/staff", staffHandler)
+	http.HandleFunc("/billing", billingHandler)
+	http.HandleFunc("/analytics", analyticsHandler)
 
 	// Step 2: Start the server
 	// http.ListenAndServe starts the web server on a specific port.

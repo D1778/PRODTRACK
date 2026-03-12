@@ -20,18 +20,6 @@ export default function Stock() {
         setTimeout(() => setMsg(null), 3000);
     };
 
-    if (currentUser?.role !== "owner") {
-        return (
-            <div className="card">
-                <div className="card-header">
-                    <h2 className="card-title" style={{ color: "var(--danger)" }}>Access Denied</h2>
-                </div>
-                <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>
-                    <p style={{ fontSize: "16px" }}>You do not have permission to modify inventory stock. Only Owners can perform this action.</p>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="card">

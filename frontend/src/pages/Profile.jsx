@@ -15,7 +15,7 @@ export default function Profile() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", alignItems: "start" }}>
                 {/* Left Column: Profile */}
                 <div style={{ paddingRight: "40px", borderRight: "1px solid var(--border)" }}>
-                    <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "20px", color: "var(--text-primary)" }}>Profile Details</h3>
+                    <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "20px", color: "var(--text-primary)" }}>Account Details</h3>
                     <div className="form-group">
                         <label className="form-label">Full Name</label>
                         <input type="text" className="form-control" value={currentUser?.name || ""} readOnly />
@@ -27,6 +27,14 @@ export default function Profile() {
                     <div className="form-group">
                         <label className="form-label">Role</label>
                         <input type="text" className="form-control" value={currentUser?.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1) : ""} readOnly />
+                    </div>
+                    <div className="form-group" style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
+                        <label className="form-label">Business Name</label>
+                        <input type="text" className="form-control" value={currentUser?.businessName || ""} readOnly />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">Business Password</label>
+                        <input type="password" className="form-control" value={currentUser?.businessPassword || ""} readOnly />
                     </div>
                     <button className="btn btn-secondary" onClick={() => { logout(); navigate("/"); }} style={{ marginTop: "16px" }}>Logout</button>
                 </div>

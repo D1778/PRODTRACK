@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 
 export default function Products() {
-    const { products, currentUser } = useApp();
+    const { products, currentUser, deleteProduct } = useApp();
     const [search, setSearch] = useState("");
     const [cat, setCat] = useState("");
 
@@ -19,7 +19,7 @@ export default function Products() {
         <div className="card">
             <div className="card-header">
                 <h2 className="card-title">All Products</h2>
-                {currentUser?.role === "owner" && (
+                {(currentUser?.role === "owner" || currentUser?.role === "staff") && (
                     <Link to="/dashboard/add-product" className="btn btn-primary">+ Add Product</Link>
                 )}
             </div>
@@ -46,9 +46,11 @@ export default function Products() {
                         <tr>
                             <th>Product Name</th>
                             <th>Category</th>
+                            <th>Price</th>
                             <th>Current Stock</th>
                             <th>Min Threshold</th>
                             <th>Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -58,6 +60,7 @@ export default function Products() {
                                 <tr key={p.id} className={isLow ? "low-stock-row" : ""}>
                                     <td><strong>{p.name}</strong></td>
                                     <td>{p.category}</td>
+                                    <td>₹{p.price}</td>
                                     <td>{p.stock}</td>
                                     <td>{p.minThreshold}</td>
                                     <td>
@@ -65,11 +68,26 @@ export default function Products() {
                                             {isLow ? "Low Stock" : "OK"}
                                         </span>
                                     </td>
+                                    <td>
+                                        {(currentUser?.role === "owner" || currentUser?.role === "staff") && (
+                                            <button 
+                                                className="btn btn-secondary" 
+                                                style={{ padding: '4px 8px', fontSize: '12px', background: 'var(--danger)', borderColor: 'var(--danger)', color: 'white' }}
+                                                onClick={() => {
+                                                    if(window.confirm(`Are you sure you want to delete ${p.name}?`)) {
+                                                        deleteProduct(p.id);
+                                                    }
+                                                }}
+                                            >
+                                                Delete
+                                            </button>
+                                        )}
+                                    </td>
                                 </tr>
                             );
                         }) : (
                             <tr>
-                                <td colSpan={5}>
+                                <td colSpan={7}>
                                     <div className="empty-state">
                                         <h3>No Products Found</h3>
                                     </div>

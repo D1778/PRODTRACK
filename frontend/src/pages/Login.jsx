@@ -14,11 +14,11 @@ export default function Login() {
 
     const email = e.target.email.value;
     const password = e.target.password.value;
-    const shopName = e.target.shopName.value;
-    const shopId = e.target.shopId.value;
+    const businessName = e.target.businessName.value;
+    const businessPassword = e.target.businessPassword.value;
 
     setLoading(true);
-    const result = await login(email, password, shopName, shopId);
+    const result = await login(email, password, businessName, businessPassword);
     setLoading(false);
 
     if (result.success) {
@@ -46,12 +46,12 @@ export default function Login() {
             <input type="password" name="password" className="form-control" placeholder="Enter your password" required />
           </div>
           <div className="form-group">
-            <label className="form-label">Shop Name</label>
-            <input type="text" name="shopName" className="form-control" placeholder="Enter shop name" required />
+            <label className="form-label">Business Name</label>
+            <input type="text" name="businessName" className="form-control" placeholder="Enter business name" required />
           </div>
           <div className="form-group">
-            <label className="form-label">Shop ID</label>
-            <input type="text" name="shopId" className="form-control" placeholder="Enter shop ID" required />
+            <label className="form-label">Business Password</label>
+            <input type="password" name="businessPassword" className="form-control" placeholder="Enter business password" required />
           </div>
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
             {loading ? "Logging in..." : "Login"}

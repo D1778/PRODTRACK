@@ -11,6 +11,8 @@ import Stock from "./pages/Stock";
 import History from "./pages/History";
 import Alerts from "./pages/Alerts";
 import Profile from "./pages/Profile";
+import Billing from "./pages/Billing";
+import StaffManagement from "./pages/StaffManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
@@ -37,6 +39,8 @@ export default function App() {
             <Route path="history" element={<History />} />
             <Route path="alerts" element={<Alerts />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="staff" element={<StaffManagement />} />
           </Route>
         </Routes>
       </BrowserRouter>

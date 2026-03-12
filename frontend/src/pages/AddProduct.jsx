@@ -12,6 +12,7 @@ export default function AddProduct() {
         addProduct({
             name: e.target.productName.value,
             category: e.target.category.value,
+            price: parseFloat(e.target.price.value),
             stock: parseInt(e.target.initialStock.value),
             minThreshold: parseInt(e.target.minThreshold.value),
             vendor: e.target.vendor.value,
@@ -49,6 +50,10 @@ export default function AddProduct() {
                 <div className="form-group">
                     <label className="form-label">Category *</label>
                     <input type="text" name="category" className="form-control" placeholder="e.g., Electronics, Groceries" required />
+                </div>
+                <div className="form-group">
+                    <label className="form-label">Selling Price (₹) *</label>
+                    <input type="number" step="0.01" name="price" className="form-control" placeholder="0.00" required />
                 </div>
                 <div className="form-group">
                     <label className="form-label">Initial Stock Quantity *</label>
