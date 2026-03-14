@@ -1,0 +1,34 @@
+[
+  {
+    "name": "dinu",
+    "email": "dinu@gm",
+    "password": "$2a$10$tyhCnPI0sDQpQia1KLtJxujjFK4KSk.4bmm8Xa/KRhck3rr6gS9XK",
+    "role": "owner",
+    "businessPassword": "dinu",
+    "businessName": "dinushop"
+  },
+  {
+    "name": "kunal",
+    "email": "kunal@gm",
+    "password": "$2a$10$H5yxw6UP4YhQZqgyBWrXi./r/ZprqqJOJpqV0.Ld1Gg2Ze1T0c99S",
+    "role": "staff",
+    "businessPassword": "dinu",
+    "businessName": ""
+  },
+  {
+    "name": "derik",
+    "email": "derik@kr",
+    "password": "$2a$10$yNARvowD2FrwSz5hhO9/Fum6jwlYdJNiKBK4ecbz0nz7dg3HwYUAa",
+    "role": "owner",
+    "businessPassword": "derik",
+    "businessName": "derikstore"
+  },
+  {
+    "name": "kk",
+    "email": "kk@k",
+    "password": "$2a$10$.oQ4qkbPnJzvDDeURiODzuFIZbH9dVGVp4RE435/pNavTdQZguLGi",
+    "role": "owner",
+    "businessPassword": "kkkk",
+    "businessName": "kk"
+  }
+]

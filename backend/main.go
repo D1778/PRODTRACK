@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ============================================================================
@@ -97,6 +100,32 @@ func sendJSON(w http.ResponseWriter, status int, data interface{}) {
 	json.NewEncoder(w).Encode(data)
 }
 
+// saveData saves a slice of data to a JSON file
+func saveData(filename string, data interface{}) {
+	fileData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling data for %s: %v\n", filename, err)
+		return
+	}
+	err = os.WriteFile(filename, fileData, 0644)
+	if err != nil {
+		fmt.Printf("Error writing to file %s: %v\n", filename, err)
+	}
+}
+
+// loadData reads JSON data from a file into a target interface
+func loadData(filename string, target interface{}) error {
+	fileData, err := os.ReadFile(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist yet, that's fine
+			return nil
+		}
+		return err
+	}
+	return json.Unmarshal(fileData, target)
+}
+
 // handleCORS handles the "security check" browsers do when calling an API.
 // If the browser asks "Are you allowed to talk to me?", we say "Yes".
 func handleCORS(w http.ResponseWriter, r *http.Request) bool {
@@ -142,8 +171,13 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if req.Role == "owner" && (req.BusinessPassword == "" || req.BusinessName == "") {
-			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Business Name and Password are required for Owners"})
+		if req.Role != "owner" {
+			sendJSON(w, http.StatusForbidden, map[string]string{"message": "Only owner signup is allowed"})
+			return
+		}
+
+		if req.BusinessPassword == "" || req.BusinessName == "" {
+			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Business Name and Password are required"})
 			return
 		}
 
@@ -154,29 +188,35 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if req.Role == "owner" {
-			for _, s := range businessStorage {
-				if s.BusinessPassword == req.BusinessPassword {
-					sendJSON(w, http.StatusConflict, map[string]string{"message": "Business Password already exists"})
-					return
-				}
+		for _, s := range businessStorage {
+			if s.BusinessPassword == req.BusinessPassword {
+				sendJSON(w, http.StatusConflict, map[string]string{"message": "Business Password already exists"})
+				return
 			}
-			businessStorage = append(businessStorage, Business{
-				BusinessPassword: req.BusinessPassword,
-				BusinessName:     req.BusinessName,
-				OwnerEmail:       req.Email,
-			})
+		}
+		businessStorage = append(businessStorage, Business{
+			BusinessPassword: req.BusinessPassword,
+			BusinessName:     req.BusinessName,
+			OwnerEmail:       req.Email,
+		})
+		saveData("businesses.json", businessStorage)
+
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			sendJSON(w, http.StatusInternalServerError, map[string]string{"message": "Error hashing password"})
+			return
 		}
 
 		newUser := User{
 			Name:             req.Name,
 			Email:            req.Email,
-			Password:         req.Password,
+			Password:         string(hashedPassword),
 			Role:             req.Role,
 			BusinessPassword: req.BusinessPassword,
 			BusinessName:     req.BusinessName,
 		}
 		userStorage = append(userStorage, newUser)
+		saveData("users.json", userStorage)
 
 		fmt.Printf("User Created: %s (%s) for Business Password: %s\n", newUser.Email, newUser.Role, newUser.BusinessPassword)
 		sendJSON(w, http.StatusCreated, map[string]string{"message": "Success!"})
@@ -194,7 +234,13 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for i, u := range userStorage {
-			if u.Email == req.Email && u.Password == req.Password {
+			if u.Email == req.Email {
+				err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(req.Password))
+				if err != nil {
+					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Wrong email or password"})
+					return
+				}
+
 				if u.Role == "owner" && u.BusinessPassword != req.BusinessPassword {
 					sendJSON(w, http.StatusUnauthorized, map[string]string{"message": "Incorrect Business Password for this Owner account"})
 					return
@@ -223,6 +269,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 				if u.Role == "staff" && u.BusinessPassword == "" {
 					userStorage[i].BusinessPassword = req.BusinessPassword
 					fmt.Printf("Notice: Bound Staff %s to Business Password %s (%s)\n", u.Email, req.BusinessPassword, userStorage[i].BusinessName)
+					saveData("users.json", userStorage)
 				}
 				
 				// Return the most up-to-date user object from our storage
@@ -286,6 +333,7 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		p.BusinessPassword = businessPassword
 		nextProductID++
 		productStorage = append(productStorage, p)
+		saveData("products.json", productStorage)
 
 		if p.Stock > 0 {
 			historyStorage = append(historyStorage, StockHistory{
@@ -299,6 +347,7 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 				Timestamp:        time.Now().Format(time.RFC3339),
 				Notes:            "Initial stock",
 			})
+			saveData("history.json", historyStorage)
 		}
 
 		sendJSON(w, http.StatusCreated, p)
@@ -323,6 +372,7 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		for i, p := range productStorage {
 			if p.ID == req.ID && p.BusinessPassword == businessPassword {
 				productStorage = append(productStorage[:i], productStorage[i+1:]...)
+				saveData("products.json", productStorage)
 				sendJSON(w, http.StatusOK, map[string]string{"message": "Product deleted"})
 				return
 			}
@@ -411,6 +461,8 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Notes:       req.Reason,
 	})
+	saveData("products.json", productStorage)
+	saveData("history.json", historyStorage)
 
 	fmt.Printf("Stock Update (Business Password %s): %s %s %d (New Stock: %d)\n", businessPassword, product.Name, req.Action, req.Quantity, product.Stock)
 	sendJSON(w, http.StatusOK, map[string]interface{}{"message": "Stock updated!", "product": product})
@@ -479,9 +531,18 @@ func staffHandler(w http.ResponseWriter, r *http.Request) {
 			sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
 			return
 		}
+		
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(staff.Password), bcrypt.DefaultCost)
+		if err != nil {
+			sendJSON(w, http.StatusInternalServerError, map[string]string{"message": "Failed to hash password"})
+			return
+		}
+		
+		staff.Password = string(hashedPassword)
 		staff.BusinessPassword = businessPassword
 		staff.Role = "staff"
 		userStorage = append(userStorage, staff)
+		saveData("users.json", userStorage)
 		sendJSON(w, http.StatusCreated, staff)
 		return
 	}
@@ -498,6 +559,7 @@ func staffHandler(w http.ResponseWriter, r *http.Request) {
 		for i, u := range userStorage {
 			if u.Email == req.Email && u.BusinessPassword == businessPassword && u.Role == "staff" {
 				userStorage = append(userStorage[:i], userStorage[i+1:]...)
+				saveData("users.json", userStorage)
 				sendJSON(w, http.StatusOK, map[string]string{"message": "Staff member removed"})
 				return
 			}
@@ -555,8 +617,11 @@ func billingHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		saveData("products.json", productStorage)
+		saveData("history.json", historyStorage)
 
 		billStorage = append(billStorage, bill)
+		saveData("bills.json", billStorage)
 		sendJSON(w, http.StatusCreated, bill)
 		return
 	}
@@ -629,6 +694,30 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request) {
 // MAIN FUNCTION (The starting point)
 // ============================================================================
 func main() {
+	// Initialize data from JSON files
+	if err := loadData("users.json", &userStorage); err != nil {
+		fmt.Printf("Error loading users: %v\n", err)
+	}
+	if err := loadData("businesses.json", &businessStorage); err != nil {
+		fmt.Printf("Error loading businesses: %v\n", err)
+	}
+	if err := loadData("products.json", &productStorage); err != nil {
+		fmt.Printf("Error loading products: %v\n", err)
+	}
+	if err := loadData("history.json", &historyStorage); err != nil {
+		fmt.Printf("Error loading history: %v\n", err)
+	}
+	if err := loadData("bills.json", &billStorage); err != nil {
+		fmt.Printf("Error loading bills: %v\n", err)
+	}
+
+	// Calculate next product ID based on loaded data
+	for _, p := range productStorage {
+		if p.ID >= nextProductID {
+			nextProductID = p.ID + 1
+		}
+	}
+
 	// Step 1: Tell Go which URL leads to which function
 	// http.HandleFunc connects a URL path to a specific handler function.
 	http.HandleFunc("/signup", authHandler)
