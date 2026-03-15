@@ -42,5 +42,16 @@
     "performedBy": "kunal",
     "timestamp": "2026-03-16T00:45:33+05:30",
     "notes": "new stock\n"
+  },
+  {
+    "id": 1773602647862899500,
+    "businessPassword": "dinu",
+    "productId": 2,
+    "productName": "TEAPOT",
+    "action": "out",
+    "quantity": 80,
+    "performedBy": "dinu",
+    "timestamp": "2026-03-16T00:54:07+05:30",
+    "notes": "stock out\n"
   }
 ]
