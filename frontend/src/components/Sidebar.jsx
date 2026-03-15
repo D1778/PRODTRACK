@@ -19,7 +19,7 @@ export default function Sidebar() {
 
   const filteredNav = nav.filter(item => {
     if (currentUser?.role !== "owner") {
-      if (item.label === "Stock Management" || item.label === "Staff Management") {
+      if (item.label === "Staff Management") {
         return false;
       }
     }

@@ -7,23 +7,19 @@ export default function Signup() {
   const navigate = useNavigate();
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState("");
 
   const handleSignup = async (e) => {
     e.preventDefault();
     setMessage(null);
-
-    const role = selectedRole || e.target.role?.value;
-    if (!role) { setMessage({ ok: false, text: "Please select a role" }); return; }
 
     setLoading(true);
     const result = await signup(
       e.target.fullName.value,
       e.target.email.value,
       e.target.password.value,
-      role,
-      role === "owner" ? e.target.businessName.value : "",
-      role === "owner" ? e.target.businessPassword.value : ""
+      "owner",
+      e.target.businessName.value,
+      e.target.businessPassword.value
     );
     setLoading(false);
 
@@ -59,26 +55,13 @@ export default function Signup() {
             <input type="password" name="password" className="form-control" placeholder="Create a password" required />
           </div>
           <div className="form-group">
-            <label className="form-label">Role</label>
-            <select name="role" className="form-control" required value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
-              <option value="">Select your role</option>
-              <option value="owner">Owner</option>
-              <option value="staff">Staff</option>
-            </select>
+            <label className="form-label">Business Name</label>
+            <input type="text" name="businessName" className="form-control" placeholder="e.g. My Awesome Business" required />
           </div>
-
-          {selectedRole === "owner" && (
-            <>
-              <div className="form-group">
-                <label className="form-label">Business Name</label>
-                <input type="text" name="businessName" className="form-control" placeholder="e.g. My Awesome Business" required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Business Password</label>
-                <input type="password" name="businessPassword" className="form-control" placeholder="Create a business password" required />
-              </div>
-            </>
-          )}
+          <div className="form-group">
+            <label className="form-label">Business Password</label>
+            <input type="password" name="businessPassword" className="form-control" placeholder="Create a business password" required />
+          </div>
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
             {loading ? "Creating Account..." : "Create Account"}
           </button>

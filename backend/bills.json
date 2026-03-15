@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1773601341540466000,
+    "businessPassword": "dinu",
+    "items": [
+      {
+        "productId": 2,
+        "productName": "TEAPOT",
+        "quantity": 1,
+        "price": 40
+      }
+    ],
+    "totalAmount": 40,
+    "createdBy": "kunal",
+    "timestamp": "2026-03-16T00:32:21+05:30"
+  }
+]
