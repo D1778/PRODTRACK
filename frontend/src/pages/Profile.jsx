@@ -1,9 +1,17 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 
 export default function Profile() {
     const { currentUser, logout } = useApp();
     const navigate = useNavigate();
+    const [feedback, setFeedback] = useState("");
+
+    const handleFeedbackSubmit = () => {
+        if (!feedback.trim()) return;
+        alert("Thank you for your feedback! Our team will review it shortly.");
+        setFeedback("");
+    };
 
     return (
         <div className="card">
@@ -49,11 +57,13 @@ export default function Profile() {
                             rows="5"
                             placeholder="Tell us what you love, what you hate, and what you'd like to see next..."
                             style={{ resize: "vertical", minHeight: "120px" }}
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
                         ></textarea>
                     </div>
                     <button
                         className="btn btn-primary"
-                        onClick={() => alert("Thank you for your feedback! Our team will review it shortly.")}
+                        onClick={handleFeedbackSubmit}
                     >
                         Submit Feedback
                     </button>

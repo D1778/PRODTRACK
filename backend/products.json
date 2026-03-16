@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": 2,
+    "businessPassword": "dinu",
+    "name": "TEAPOT",
+    "category": "groceries",
+    "price": 40,
+    "stock": 31,
+    "minThreshold": 40,
+    "vendor": "jay",
+    "notes": "nope",
+    "performedBy": "dinu"
+  }
+]
