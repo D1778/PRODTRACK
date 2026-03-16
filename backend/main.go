@@ -216,7 +216,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 			BusinessName:     req.BusinessName,
 		}
 		userStorage = append(userStorage, newUser)
-		saveData("users.json", userStorage)
+		go saveData("users.json", userStorage) // Goroutine added
 
 		fmt.Printf("User Created: %s (%s) for Business Password: %s\n", newUser.Email, newUser.Role, newUser.BusinessPassword)
 		sendJSON(w, http.StatusCreated, map[string]string{"message": "Success!"})
@@ -347,7 +347,7 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 				Timestamp:        time.Now().Format(time.RFC3339),
 				Notes:            "Initial stock",
 			})
-			saveData("history.json", historyStorage)
+			go saveData("history.json", historyStorage) // Goroutine added
 		}
 
 		sendJSON(w, http.StatusCreated, p)
@@ -462,7 +462,7 @@ func stockHandler(w http.ResponseWriter, r *http.Request) {
 		Notes:       req.Reason,
 	})
 	saveData("products.json", productStorage)
-	saveData("history.json", historyStorage)
+	go saveData("history.json", historyStorage) // Goroutine added
 
 	fmt.Printf("Stock Update (Business Password %s): %s %s %d (New Stock: %d)\n", businessPassword, product.Name, req.Action, req.Quantity, product.Stock)
 	sendJSON(w, http.StatusOK, map[string]interface{}{"message": "Stock updated!", "product": product})
@@ -618,7 +618,7 @@ func billingHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		saveData("products.json", productStorage)
-		saveData("history.json", historyStorage)
+		go saveData("history.json", historyStorage) // Goroutine added
 
 		billStorage = append(billStorage, bill)
 		saveData("bills.json", billStorage)
@@ -668,20 +668,45 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request) {
 		ItemsSold  int     `json:"itemsSold"`
 	}
 
-	summaries := make(map[string]*DailySummary)
-	for _, b := range billStorage {
-		if b.BusinessPassword == businessPassword {
+	// 1. Set up Channels
+	// We make a buffered channel large enough to hold all bills to prevent blocking
+	billChan := make(chan Bill, len(billStorage)+1)
+	resultChan := make(chan map[string]*DailySummary)
+
+	// 2. Start the Worker (Goroutine)
+	// This background worker listens for bills and does the heavy calculations
+	go func() {
+		localSummaries := make(map[string]*DailySummary)
+		// Range over a channel keeps reading until the channel is officially closed
+		for b := range billChan {
 			date := b.Timestamp[:10]
-			if _, exists := summaries[date]; !exists {
-				summaries[date] = &DailySummary{Date: date}
+			if _, exists := localSummaries[date]; !exists {
+				localSummaries[date] = &DailySummary{Date: date}
 			}
-			summaries[date].TotalSales += b.TotalAmount
+			localSummaries[date].TotalSales += b.TotalAmount
 			for _, item := range b.Items {
-				summaries[date].ItemsSold += item.Quantity
+				localSummaries[date].ItemsSold += item.Quantity
 			}
 		}
-	}
+		// Send the final calculated map back to the main thread
+		resultChan <- localSummaries
+	}()
 
+	// 3. Feed the Worker
+	// We send all relevant bills into the pipe
+	for _, b := range billStorage {
+		if b.BusinessPassword == businessPassword {
+			billChan <- b
+		}
+	}
+	// Crucial: Close the channel so the worker's 'for range' loop knows to stop
+	close(billChan)
+
+	// 4. Wait for Results
+	// Execution pauses here until the worker sends data back through resultChan
+	summaries := <-resultChan
+
+	// Convert map to array for React
 	result := []DailySummary{}
 	for _, s := range summaries {
 		result = append(result, *s)
