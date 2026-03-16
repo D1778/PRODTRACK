@@ -53,5 +53,16 @@
     "performedBy": "dinu",
     "timestamp": "2026-03-16T00:54:07+05:30",
     "notes": "stock out\n"
+  },
+  {
+    "id": 1773635130527668100,
+    "businessPassword": "dinu",
+    "productId": 3,
+    "productName": "plates",
+    "action": "in",
+    "quantity": 50,
+    "performedBy": "dinu",
+    "timestamp": "2026-03-16T09:55:30+05:30",
+    "notes": "Initial stock"
   }
 ]

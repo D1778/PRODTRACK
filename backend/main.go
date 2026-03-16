@@ -216,7 +216,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 			BusinessName:     req.BusinessName,
 		}
 		userStorage = append(userStorage, newUser)
-		go saveData("users.json", userStorage) // Goroutine added
+		go saveData("users.json", userStorage) // Goroutine 
 
 		fmt.Printf("User Created: %s (%s) for Business Password: %s\n", newUser.Email, newUser.Role, newUser.BusinessPassword)
 		sendJSON(w, http.StatusCreated, map[string]string{"message": "Success!"})
