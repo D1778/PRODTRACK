@@ -14,13 +14,5 @@
     "role": "staff",
     "businessPassword": "dinu",
     "businessName": ""
-  },
-  {
-    "name": "alan",
-    "email": "alan@gm",
-    "password": "$2a$10$HgO7qmjr34MNzyuIWuAy9eDQW.eEasxduYAFPCq8g4ggsJV2IPTMO",
-    "role": "staff",
-    "businessPassword": "dinu",
-    "businessName": ""
   }
 ]

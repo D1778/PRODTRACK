@@ -130,7 +130,7 @@ func loadData(filename string, target interface{}) error {
 // If the browser asks "Are you allowed to talk to me?", we say "Yes".
 func handleCORS(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Business-Password, X-User-Role")
 
 	if r.Method == "OPTIONS" {
@@ -715,6 +715,71 @@ func analyticsHandler(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, http.StatusOK, result)
 }
 
+// profileHandler lets a user update their own name, email, and password
+func profileHandler(w http.ResponseWriter, r *http.Request) {
+	if handleCORS(w, r) {
+		return
+	}
+	if r.Method != "PUT" {
+		sendJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": "Please use PUT"})
+		return
+	}
+
+	var req struct {
+		Email       string `json:"email"`       // current email to find user
+		Name        string `json:"name"`        // new name
+		NewEmail    string `json:"newEmail"`    // new email
+		NewPassword string `json:"newPassword"` // new password (optional)
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sendJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid data"})
+		return
+	}
+
+	// Check if newEmail is already taken by another user
+	if req.NewEmail != req.Email {
+		for _, u := range userStorage {
+			if u.Email == req.NewEmail {
+				sendJSON(w, http.StatusConflict, map[string]string{"message": "Email already in use"})
+				return
+			}
+		}
+	}
+
+	for i, u := range userStorage {
+		if u.Email == req.Email {
+			userStorage[i].Name = req.Name
+			userStorage[i].Email = req.NewEmail
+
+			// If a new password was provided, hash and update it
+			if req.NewPassword != "" {
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+				if err != nil {
+					sendJSON(w, http.StatusInternalServerError, map[string]string{"message": "Error hashing password"})
+					return
+				}
+				userStorage[i].Password = string(hashedPassword)
+			}
+
+			go saveData("users.json", userStorage)
+
+			// Return updated user without password
+			sendJSON(w, http.StatusOK, map[string]interface{}{
+				"message": "Profile updated!",
+				"user": map[string]string{
+					"name":             userStorage[i].Name,
+					"email":            userStorage[i].Email,
+					"role":             userStorage[i].Role,
+					"businessPassword": userStorage[i].BusinessPassword,
+					"businessName":     userStorage[i].BusinessName,
+				},
+			})
+			return
+		}
+	}
+	sendJSON(w, http.StatusNotFound, map[string]string{"message": "User not found"})
+}
+
 // ============================================================================
 // MAIN FUNCTION (The starting point)
 // ============================================================================
@@ -753,6 +818,7 @@ func main() {
 	http.HandleFunc("/staff", staffHandler)
 	http.HandleFunc("/billing", billingHandler)
 	http.HandleFunc("/analytics", analyticsHandler)
+	http.HandleFunc("/profile", profileHandler)
 
 	// Step 2: Start the server
 	// http.ListenAndServe starts the web server on a specific port.

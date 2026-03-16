@@ -316,6 +316,27 @@ export function AppProvider({ children }) {
     }
   };
 
+  const updateProfile = async (name, newEmail, newPassword = "") => {
+    try {
+      const res = await fetch(`${API_URL}/profile`, {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify({ email: currentUser.email, name, newEmail, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, message: data.message || "Update failed" };
+      }
+      const updatedUser = data.user;
+      setCurrentUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      return { success: true, message: data.message || "Profile updated!" };
+    } catch (err) {
+      console.error("Profile update error:", err);
+      return { success: false, message: "Cannot connect to server." };
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -334,7 +355,8 @@ export function AppProvider({ children }) {
         addStaffMember,
         removeStaffMember,
         createBill,
-        refreshData
+        refreshData,
+        updateProfile
       }}
     >
       {children}
