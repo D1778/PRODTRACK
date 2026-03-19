@@ -10,5 +10,17 @@
     "vendor": "jay",
     "notes": "nope",
     "performedBy": "dinu"
+  },
+  {
+    "id": 3,
+    "businessPassword": "dinu",
+    "name": "plates",
+    "category": "groceries",
+    "price": 49.99,
+    "stock": 50,
+    "minThreshold": 9,
+    "vendor": "",
+    "notes": "",
+    "performedBy": "dinu"
   }
 ]
