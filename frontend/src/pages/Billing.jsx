@@ -149,7 +149,7 @@ export default function Billing() {
       </div>
 
       {view === "new" ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px' }}>
+        <div className="billing-grid">
           <div className="inventory-section">
             <div style={{ marginBottom: '24px' }}>
               <h1 className="page-title">Generate Bill</h1>

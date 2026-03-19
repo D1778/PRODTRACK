@@ -64,10 +64,10 @@ export default function Profile() {
                 </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", alignItems: "start" }}>
+            <div className="profile-grid">
                 {/* Left Column: Profile */}
-                <div style={{ paddingRight: "40px", borderRight: "1px solid var(--border)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                <div className="profile-column">
+                    <div className="page-header-flex">
                         <h3 style={{ fontSize: "18px", fontWeight: "600", color: "var(--text-primary)" }}>Account Details</h3>
                         {!isEditing && (
                             <button
