@@ -30,5 +30,13 @@
     "role": "owner",
     "businessPassword": "kkkk",
     "businessName": "kk"
+  },
+  {
+    "name": "d",
+    "email": "d@d",
+    "password": "$2a$10$RwXIcOT4Jp8xmOfKNKqxBOcZtQ.x4.2fxMAbcF.yAW79JBv2w3Wm2",
+    "role": "staff",
+    "businessPassword": "dinu",
+    "businessName": ""
   }
 ]

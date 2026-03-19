@@ -16,6 +16,7 @@ const nav = [
 export default function Sidebar() {
   const { currentUser } = useApp();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const filteredNav = nav.filter(item => {
     if (currentUser?.role !== "owner") {
@@ -40,7 +41,22 @@ export default function Sidebar() {
 
   return (
     <>
-      <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+      {/* Mobile Toggle Button */}
+      <button className="mobile-toggle" onClick={() => setIsMobileOpen(true)}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+
+      {/* Mobile Overlay */}
+      <div 
+        className={`sidebar-overlay ${isMobileOpen ? 'show' : ''}`} 
+        onClick={() => setIsMobileOpen(false)}
+      ></div>
+
+      <div className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="header-top">
             <h2 className="sidebar-logo">PRODTRACK</h2>
@@ -61,6 +77,7 @@ export default function Sidebar() {
               end={item.end}
               className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
               title={isCollapsed ? item.label : ""}
+              onClick={() => setIsMobileOpen(false)}
             >
               <span className="nav-icon">{item.icon}</span>
               {!isCollapsed && <span>{item.label}</span>}
