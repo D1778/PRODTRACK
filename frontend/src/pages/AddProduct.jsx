@@ -7,9 +7,9 @@ export default function AddProduct() {
     const navigate = useNavigate();
     const [msg, setMsg] = useState(null);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        addProduct({
+        const res = await addProduct({
             name: e.target.productName.value,
             category: e.target.category.value,
             price: parseFloat(e.target.price.value),
@@ -18,9 +18,14 @@ export default function AddProduct() {
             vendor: e.target.vendor.value,
             notes: e.target.notes.value,
         });
-        setMsg("Product added successfully!");
-        e.target.reset();
-        setTimeout(() => { setMsg(null); navigate("/dashboard/products"); }, 1500);
+
+        if (res.success) {
+            setMsg("Product added successfully!");
+            e.target.reset();
+            setTimeout(() => { setMsg(null); navigate("/dashboard/products"); }, 1500);
+        } else {
+            setMsg("Error: " + (res.message || "Failed to add product"));
+        }
     };
 
 

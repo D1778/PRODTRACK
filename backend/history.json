@@ -97,5 +97,16 @@
     "performedBy": "d",
     "timestamp": "2026-03-19T16:30:45+05:30",
     "notes": "apple"
+  },
+  {
+    "id": 1774095812222381400,
+    "businessPassword": "dinu",
+    "productId": 3,
+    "productName": "plates",
+    "action": "out",
+    "quantity": 14,
+    "performedBy": "dinu",
+    "timestamp": "2026-03-21T17:53:32+05:30",
+    "notes": "Sold via billing"
   }
 ]

@@ -93,9 +93,9 @@ export default function StaffManagement() {
                       borderColor: 'var(--danger)', 
                       color: 'white' 
                     }}
-                    onClick={() => {
+                    onClick={async () => {
                       if (window.confirm(`Are you sure you want to remove ${staff.name}?`)) {
-                        removeStaffMember(staff.email);
+                        await removeStaffMember(staff.email);
                       }
                     }}
                   >
