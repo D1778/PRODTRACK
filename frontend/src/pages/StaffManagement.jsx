@@ -27,7 +27,7 @@ export default function StaffManagement() {
 
   return (
     <div className="page-container">
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div className="page-header page-header-flex">
         <div>
           <h1 className="page-title">Staff Management</h1>
           <p className="page-subtitle">Manage your business staff accounts and permissions</p>

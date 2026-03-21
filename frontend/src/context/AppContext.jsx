@@ -7,7 +7,10 @@ const AppContext = createContext();
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 export function AppProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const storedUserStr = localStorage.getItem("user");
+    return storedUserStr ? JSON.parse(storedUserStr) : null;
+  });
   const [products, setProducts] = useState([]);
   const [stockHistory, setStockHistory] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);

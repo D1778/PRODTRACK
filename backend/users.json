@@ -14,5 +14,29 @@
     "role": "staff",
     "businessPassword": "dinu",
     "businessName": ""
+  },
+  {
+    "name": "derik",
+    "email": "derik@kr",
+    "password": "$2a$10$yNARvowD2FrwSz5hhO9/Fum6jwlYdJNiKBK4ecbz0nz7dg3HwYUAa",
+    "role": "owner",
+    "businessPassword": "derik",
+    "businessName": "derikstore"
+  },
+  {
+    "name": "kk",
+    "email": "kk@k",
+    "password": "$2a$10$.oQ4qkbPnJzvDDeURiODzuFIZbH9dVGVp4RE435/pNavTdQZguLGi",
+    "role": "owner",
+    "businessPassword": "kkkk",
+    "businessName": "kk"
+  },
+  {
+    "name": "d",
+    "email": "d@d",
+    "password": "$2a$10$RwXIcOT4Jp8xmOfKNKqxBOcZtQ.x4.2fxMAbcF.yAW79JBv2w3Wm2",
+    "role": "staff",
+    "businessPassword": "dinu",
+    "businessName": ""
   }
 ]

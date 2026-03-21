@@ -1023,7 +1023,7 @@ textarea.form-control {
 }
 
 .mobile-toggle {
-  display: flex;
+  display: none;
   position: fixed;
   top: 20px;
   left: 20px;
@@ -1303,6 +1303,32 @@ tbody tr:last-child td {
   color: var(--text-secondary);
 }
 
+/* ─── CUSTOM GRIDS ─── */
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+.profile-column {
+  padding-right: 40px;
+  border-right: 1px solid var(--border);
+}
+
+.billing-grid {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 24px;
+}
+
+.page-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
 /* ─── RESPONSIVE ─── */
 @media (max-width: 1024px) {
   .hero-container {
@@ -1330,6 +1356,11 @@ tbody tr:last-child td {
   .hero-title {
     font-size: 36px;
   }
+  
+  .hero-description {
+    font-size: 16px;
+    margin-bottom: 24px;
+  }
 
   .summary-grid {
     grid-template-columns: 1fr;
@@ -1337,6 +1368,27 @@ tbody tr:last-child td {
 
   .features-grid {
     grid-template-columns: 1fr;
+  }
+
+  .profile-grid, .billing-grid, .stock-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-column {
+    padding-right: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+  }
+
+  .page-header-flex {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .filters {
+    flex-direction: column;
   }
 
   .sidebar {
@@ -1351,12 +1403,47 @@ tbody tr:last-child td {
     margin-left: 0;
   }
 
-  .sidebar-overlay {
+  .content-area {
+    padding: 16px;
+  }
+
+  .card {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .page-title {
+    font-size: 18px;
+  }
+
+  .user-role {
+    display: none;
+  }
+
+  .sidebar-overlay.show {
     display: block;
   }
 
+  .mobile-toggle {
+    display: flex;
+    top: 16px;
+    left: 16px;
+    padding: 8px;
+  }
+
   .top-bar {
-    padding-left: 80px;
+    padding: 16px 20px 16px 70px;
+  }
+
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .table-container {
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
   }
 
   .footer-grid {

@@ -5,7 +5,7 @@
     "name": "TEAPOT",
     "category": "groceries",
     "price": 40,
-    "stock": 31,
+    "stock": 0,
     "minThreshold": 40,
     "vendor": "jay",
     "notes": "nope",

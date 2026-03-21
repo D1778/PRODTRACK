@@ -55,14 +55,47 @@
     "notes": "stock out\n"
   },
   {
-    "id": 1773635130527668100,
+    "id": 1773917911679424900,
     "businessPassword": "dinu",
-    "productId": 3,
-    "productName": "plates",
+    "productId": 2,
+    "productName": "TEAPOT",
+    "action": "out",
+    "quantity": 31,
+    "performedBy": "d",
+    "timestamp": "2026-03-19T16:28:31+05:30",
+    "notes": "apple"
+  },
+  {
+    "id": 1773917981084966600,
+    "businessPassword": "dinu",
+    "productId": 2,
+    "productName": "TEAPOT",
     "action": "in",
-    "quantity": 50,
+    "quantity": 120,
     "performedBy": "dinu",
-    "timestamp": "2026-03-16T09:55:30+05:30",
-    "notes": "Initial stock"
+    "timestamp": "2026-03-19T16:29:41+05:30",
+    "notes": "apple"
+  },
+  {
+    "id": 1773917983666387600,
+    "businessPassword": "dinu",
+    "productId": 2,
+    "productName": "TEAPOT",
+    "action": "out",
+    "quantity": 31,
+    "performedBy": "d",
+    "timestamp": "2026-03-19T16:29:43+05:30",
+    "notes": "apple"
+  },
+  {
+    "id": 1773918045036834400,
+    "businessPassword": "dinu",
+    "productId": 2,
+    "productName": "TEAPOT",
+    "action": "out",
+    "quantity": 89,
+    "performedBy": "d",
+    "timestamp": "2026-03-19T16:30:45+05:30",
+    "notes": "apple"
   }
 ]
