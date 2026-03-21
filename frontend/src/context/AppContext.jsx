@@ -2,7 +2,9 @@ import { createContext, useContext, useState, useEffect } from "react";
 
 const AppContext = createContext();
 
-const API_URL = "http://localhost:8080";
+// API_URL: In production, this comes from Vercel environment variables.
+// In development, it defaults to your local Go server.
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);

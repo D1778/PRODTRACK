@@ -821,12 +821,15 @@ func main() {
 	http.HandleFunc("/profile", profileHandler)
 
 	// Step 2: Start the server
-	// http.ListenAndServe starts the web server on a specific port.
-	// ":8080" means it will listen on port 8080 on all available network interfaces.
-	// 'nil' means it will use the default ServeMux (router) which we configured with http.HandleFunc.
-	fmt.Println("Server started at http://localhost:8080")
+	// Port selection: Use assigned $PORT (for Render/Heroku) or default to 8080
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Printf("Server started at http://localhost:%s\n", port)
 	fmt.Println("Routes: /signup, /login, /products, /stock, /history")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		fmt.Printf("Server failed to start: %v\n", err)
 	}
 }
