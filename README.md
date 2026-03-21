@@ -1,10 +1,10 @@
-# PRODTRACK 📦
+# PRODTRACK 
 
 **ProdTrack** is a real-time inventory and product stock tracking system designed for businesses. Developed as a Go programming project, it features a high-performance Go backend and a modern React frontend.
 
 ## 🚀 Live Demo
--   **Frontend (Vercel):** [Visit Live App](https://prodtrack-mca.vercel.app) *(Replace with your URL)*
--   **Backend (Render):** [API Health Check](https://prodtrack-backend.onrender.com) *(Replace with your URL)*
+-   **Frontend (Vercel):** [Visit Live App](https://prodtrack-coral.vercel.app/)
+-   **Backend (Render):** [API Health Check](https://prodtrack-ni1v.onrender.com)
 
 ## ✨ Key Features
 -   **Real-time Tracking**: Monitor stock levels across multiple products instantly.
@@ -45,7 +45,7 @@ The frontend will start at `http://localhost:5173`.
 ## 👥 Contributors
 Developed by MCA Students:
 -   **DINU** ([@D1778](https://github.com/D1778))
--   **KUNNAL**
+-   **KUNNAL** ([@krkunal404](https://github.com/krkunal404))
 
 ---
 
