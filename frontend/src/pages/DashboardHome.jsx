@@ -26,11 +26,11 @@ export default function DashboardHome() {
                 <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
                     <div className="summary-card" style={{ backgroundColor: 'var(--light-surface)', border: '1px solid var(--border)' }}>
                         <div className="summary-label">Today's Sales</div>
-                        <div className="summary-value">₹{todaySales}</div>
+                        <div className="summary-value">₹{todaySales.toFixed(2)}</div>
                     </div>
                     <div className="summary-card" style={{ backgroundColor: 'var(--light-surface)', border: '1px solid var(--border)' }}>
                         <div className="summary-label">Total Volume</div>
-                        <div className="summary-value">₹{totalSales}</div>
+                        <div className="summary-value">₹{totalSales.toFixed(2)}</div>
                     </div>
                     <div className={`summary-card ${lowStockCount > 0 ? 'warning' : 'success'}`}>
                         <div className="summary-label">Inventory Health</div>
@@ -49,7 +49,7 @@ export default function DashboardHome() {
                             {todayBills.length > 0 ? todayBills.map((b, i) => (
                               <div key={i} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>Bill #{b.id.toString().slice(-5)}</span>
-                                <span style={{ fontWeight: 'bold' }}>₹{b.totalAmount}</span>
+                                <span style={{ fontWeight: 'bold' }}>₹{b.totalAmount.toFixed(2)}</span>
                               </div>
                             )) : <p style={{ opacity: 0.5, textAlign: 'center' }}>No sales today</p>}
                         </div>
@@ -78,7 +78,7 @@ export default function DashboardHome() {
             <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '32px' }}>
                 <div className="summary-card" style={{ backgroundColor: 'var(--light-surface)', border: '1px solid var(--border)' }}>
                     <div className="summary-label">My Sales Today</div>
-                    <div className="summary-value">₹{todaySales}</div>
+                    <div className="summary-value">₹{todaySales.toFixed(2)}</div>
                 </div>
                 <div className="summary-card" style={{ backgroundColor: 'var(--light-surface)', border: '1px solid var(--border)' }}>
                     <div className="summary-label">Items Sold Today</div>
@@ -104,7 +104,7 @@ export default function DashboardHome() {
                         {todayBills.length > 0 ? todayBills.map((b, i) => (
                           <div key={i} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
                             <span>Bill #{b.id.toString().slice(-5)}</span>
-                            <span style={{ fontWeight: 'bold' }}>₹{b.totalAmount}</span>
+                            <span style={{ fontWeight: 'bold' }}>₹{b.totalAmount.toFixed(2)}</span>
                           </div>
                         )) : <p style={{ opacity: 0.5, textAlign: 'center' }}>No sales today</p>}
                     </div>

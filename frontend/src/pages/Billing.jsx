@@ -10,6 +10,7 @@ export default function Billing() {
   const [message, setMessage] = useState({ text: "", type: "" });
   const [view, setView] = useState("new"); // "new" or "records"
   const [selectedBill, setSelectedBill] = useState(null);
+  const [inputQuantities, setInputQuantities] = useState({});
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -17,29 +18,37 @@ export default function Billing() {
   );
 
   const addToCart = (product) => {
+    const qtyToAdd = parseInt(inputQuantities[product.id]) || 1;
+    if (qtyToAdd <= 0) {
+      setMessage({ text: "Quantity must be at least 1", type: "error" });
+      return;
+    }
     if (product.stock <= 0) {
       setMessage({ text: "Product out of stock", type: "error" });
       return;
     }
     const existing = cart.find(item => item.productId === product.id);
+    const totalQtyNeeded = (existing ? existing.quantity : 0) + qtyToAdd;
+
+    if (totalQtyNeeded > product.stock) {
+      setMessage({ text: "Insufficient stock", type: "error" });
+      return;
+    }
+
     if (existing) {
-      if (existing.quantity + 1 > product.stock) {
-        setMessage({ text: "Insufficient stock", type: "error" });
-        return;
-      }
       setCart(cart.map(item => 
-        item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        item.productId === product.id ? { ...item, quantity: item.quantity + qtyToAdd } : item
       ));
     } else {
-      // For this demo, we assume price is 100 if not specified (we should add price to Product struct)
-      // Since backend doesn't have price yet, let's hardcode or imagine one.
-    setCart([...cart, { 
+      setCart([...cart, { 
         productId: product.id, 
         productName: product.name, 
-        quantity: 1, 
+        quantity: qtyToAdd, 
         price: product.price 
       }]);
     }
+    // Reset input for this product
+    setInputQuantities({ ...inputQuantities, [product.id]: 1 });
     setMessage({ text: "", type: "" });
   };
 
@@ -102,7 +111,7 @@ export default function Billing() {
       const finalY = (doc).lastAutoTable.finalY + 10;
       doc.setFontSize(14);
       doc.setTextColor(0);
-      doc.text(`Grand Total: ₹${bill.totalAmount}`, 190, finalY, { align: "right" });
+      doc.text(`Grand Total: ₹${bill.totalAmount.toFixed(2)}`, 190, finalY, { align: "right" });
 
       doc.setFontSize(10);
       doc.setTextColor(150);
@@ -169,17 +178,27 @@ export default function Billing() {
                   <h3 style={{ margin: '0 0 8px 0' }}>{product.name}</h3>
                   <p style={{ opacity: 0.6, fontSize: '14px', marginBottom: '12px' }}>{product.category}</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>₹ {product.price}</span>
+                    <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>₹ {parseFloat(product.price).toFixed(2)}</span>
                     <span style={{ fontSize: '12px', color: product.stock < 10 ? 'var(--warning)' : 'var(--success)' }}>Stock: {product.stock}</span>
                   </div>
-                  <button 
-                    onClick={() => addToCart(product)}
-                    className="btn btn-secondary"
-                    disabled={product.stock <= 0}
-                    style={{ width: '100%', padding: '8px', fontSize: '14px' }}
-                  >
-                    Add to Bill
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max={product.stock}
+                      value={inputQuantities[product.id] || 1}
+                      onChange={(e) => setInputQuantities({...inputQuantities, [product.id]: e.target.value})}
+                      style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)', textAlign: 'center' }}
+                    />
+                    <button 
+                      onClick={() => addToCart(product)}
+                      className="btn btn-secondary"
+                      disabled={product.stock <= 0}
+                      style={{ flex: 1, padding: '8px', fontSize: '14px' }}
+                    >
+                      Add to Bill
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -194,10 +213,10 @@ export default function Billing() {
                   <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
                     <div>
                       <h4 style={{ margin: 0 }}>{item.productName}</h4>
-                      <p style={{ margin: 0, fontSize: '12px', opacity: 0.6 }}>{item.quantity} x ₹{item.price}</p>
+                      <p style={{ margin: 0, fontSize: '12px', opacity: 0.6 }}>{item.quantity} x ₹{item.price.toFixed(2)}</p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontWeight: 'bold' }}>₹{item.quantity * item.price}</span>
+                      <span style={{ fontWeight: 'bold' }}>₹{(item.quantity * item.price).toFixed(2)}</span>
                       <button onClick={() => removeFromCart(item.productId)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>✕</button>
                     </div>
                   </div>
@@ -209,7 +228,7 @@ export default function Billing() {
               <div style={{ borderTop: '2px solid var(--border)', paddingTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                   <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Total</span>
-                  <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary)' }}>₹{totalAmount}</span>
+                  <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary)' }}>₹{totalAmount.toFixed(2)}</span>
                 </div>
                 
                 {message.text && (
@@ -249,7 +268,7 @@ export default function Billing() {
                   <tr key={bill.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '12px' }}>#{String(bill.id).slice(-6)}</td>
                     <td style={{ padding: '12px' }}>{new Date(bill.timestamp).toLocaleDateString()}</td>
-                    <td style={{ padding: '12px', fontWeight: 'bold' }}>₹{bill.totalAmount}</td>
+                    <td style={{ padding: '12px', fontWeight: 'bold' }}>₹{bill.totalAmount.toFixed(2)}</td>
                     <td style={{ padding: '12px' }}>{bill.createdBy}</td>
                     <td style={{ padding: '12px', display: 'flex', gap: '8px' }}>
                       <button 
@@ -298,14 +317,14 @@ export default function Billing() {
               {selectedBill.items.map(item => (
                 <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span>{item.productName} (x{item.quantity})</span>
-                  <span>₹{item.price * item.quantity}</span>
+                  <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', borderTop: '2px solid var(--border)', paddingTop: '16px', marginBottom: '24px' }}>
               <span>Grand Total</span>
-              <span style={{ color: 'var(--primary)' }}>₹{selectedBill.totalAmount}</span>
+              <span style={{ color: 'var(--primary)' }}>₹{selectedBill.totalAmount.toFixed(2)}</span>
             </div>
 
             <button 
