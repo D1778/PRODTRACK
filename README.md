@@ -3,8 +3,8 @@
 **ProdTrack** is a real-time inventory and product stock tracking system designed for businesses. Developed as a Go programming project, it features a high-performance Go backend and a modern React frontend.
 
 ## 🚀 Live Demo
--   **Frontend (Vercel):** [Visit Live App](https://prodtrack-coral.vercel.app/)
--   **Backend (Render):** [API Health Check](https://prodtrack-ni1v.onrender.com)
+-   **Frontend (Vercel):** (https://prodtrack-coral.vercel.app/)
+-   **Backend (Render):** (https://prodtrack-ni1v.onrender.com)
 
 ## ✨ Key Features
 -   **Real-time Tracking**: Monitor stock levels across multiple products instantly.
