@@ -8,15 +8,19 @@ export default function Stock() {
 
     const selectAction = (a) => setAction(a);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!action) { setMsg({ ok: false, text: "Please select a stock action" }); return; }
         const productId = parseInt(e.target.product.value);
         const qty = parseInt(e.target.qty.value);
         const reason = e.target.reason.value;
-        const res = updateStock(productId, action, qty, reason);
+        
+        const res = await updateStock(productId, action, qty, reason);
         setMsg({ ok: res.success, text: res.message });
-        if (res.success) { e.target.reset(); setAction(""); }
+        if (res.success) { 
+            e.target.reset(); 
+            setAction(""); 
+        }
         setTimeout(() => setMsg(null), 3000);
     };
 

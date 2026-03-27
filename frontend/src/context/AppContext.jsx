@@ -31,8 +31,11 @@ export function AppProvider({ children }) {
   // Fetch products from backend
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`${API_URL}/products`, {
-        headers: getHeaders()
+      // Add timestamp to prevent caching
+      const res = await fetch(`${API_URL}/products?t=${Date.now()}`, {
+        method: "GET",
+        headers: getHeaders(),
+        cache: "no-store",
       });
       if (res.ok) {
         const data = await res.json();
@@ -48,8 +51,10 @@ export function AppProvider({ children }) {
   // Fetch history from backend
   const fetchHistory = async () => {
     try {
-      const res = await fetch(`${API_URL}/history`, {
-        headers: getHeaders()
+      const res = await fetch(`${API_URL}/history?t=${Date.now()}`, {
+        method: "GET",
+        headers: getHeaders(),
+        cache: "no-store",
       });
       if (res.ok) {
         const data = await res.json();
@@ -64,8 +69,10 @@ export function AppProvider({ children }) {
 
   const fetchStaffMembers = async () => {
     try {
-      const res = await fetch(`${API_URL}/staff`, {
-        headers: getHeaders()
+      const res = await fetch(`${API_URL}/staff?t=${Date.now()}`, {
+        method: "GET",
+        headers: getHeaders(),
+        cache: "no-store",
       });
       if (res.ok) {
         const data = await res.json();
@@ -78,8 +85,10 @@ export function AppProvider({ children }) {
 
   const fetchBills = async () => {
     try {
-      const res = await fetch(`${API_URL}/billing`, {
-        headers: getHeaders()
+      const res = await fetch(`${API_URL}/billing?t=${Date.now()}`, {
+        method: "GET",
+        headers: getHeaders(),
+        cache: "no-store",
       });
       if (res.ok) {
         const data = await res.json();
@@ -92,8 +101,10 @@ export function AppProvider({ children }) {
 
   const fetchAnalytics = async () => {
     try {
-      const res = await fetch(`${API_URL}/analytics`, {
-        headers: getHeaders()
+      const res = await fetch(`${API_URL}/analytics?t=${Date.now()}`, {
+        method: "GET",
+        headers: getHeaders(),
+        cache: "no-store",
       });
       if (res.ok) {
         const data = await res.json();
@@ -186,6 +197,7 @@ export function AppProvider({ children }) {
       const res = await fetch(`${API_URL}/products`, {
         method: "POST",
         headers: getHeaders(),
+        cache: "no-store",
         body: JSON.stringify({
           ...product,
           performedBy: currentUser?.name || "Unknown"
