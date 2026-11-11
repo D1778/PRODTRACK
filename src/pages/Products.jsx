@@ -1,102 +1,148 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import Icon from "../components/Icon";
+import ProductFilters from "../components/ProductFilters";
+import { ConfirmDialog, EmptyState, Highlight, PageHeader, StockBadge, StockMeter } from "../components/ui";
 import { useApp } from "../context/AppContext";
+import { useToast } from "../context/ToastContext";
+import { useProductFilters } from "../hooks/useProductFilters";
+import { money } from "../lib/format";
+
+function exportCSV(rows) {
+  const header = ["SKU", "Name", "Category", "Warehouse", "Price", "Stock", "Min threshold", "Vendor"];
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = rows.map((p) => [p.sku, p.name, p.category, p.warehouse, p.price, p.stock, p.minThreshold, p.vendor].map(esc).join(","));
+  const blob = new Blob([[header.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `products-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Products() {
-    const { products, currentUser, deleteProduct } = useApp();
-    const [search, setSearch] = useState("");
-    const [cat, setCat] = useState("");
+  const { products, deleteProduct, loading } = useApp();
+  const toast = useToast();
+  const filters = useProductFilters(products);
+  const [toDelete, setToDelete] = useState(null);
+  const q = filters.filters.q;
 
-    const cats = useMemo(() => [...new Set(products.map((p) => p.category))], [products]);
-    const filtered = useMemo(() => {
-        let r = products;
-        if (search) r = r.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
-        if (cat) r = r.filter((p) => p.category === cat);
-        return r;
-    }, [products, search, cat]);
+  return (
+    <>
+      <PageHeader title="Products" subtitle="Search by SKU or warehouse, filter by stock level, and keep your catalogue tidy.">
+        <button className="btn btn-secondary" onClick={() => exportCSV(filters.items)} disabled={!filters.items.length}>
+          <Icon name="download" /> Export CSV
+        </button>
+        <Link to="/dashboard/add-product" className="btn btn-primary">
+          <Icon name="plus" /> Add product
+        </Link>
+      </PageHeader>
 
-    return (
-        <div className="card">
-            <div className="card-header">
-                <h2 className="card-title">All Products</h2>
-                {(currentUser?.role === "owner" || currentUser?.role === "staff") && (
-                    <Link to="/dashboard/add-product" className="btn btn-primary">+ Add Product</Link>
-                )}
+      <div className="card">
+        {products.length > 0 && <ProductFilters state={filters} total={products.length} />}
+
+        {products.length === 0 ? (
+          loading ? (
+            <div className="card-body">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="skeleton" style={{ height: 44, marginBottom: 10 }} />
+              ))}
             </div>
-            <div className="filters">
-                <div className="filter-group">
-                    <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Search products..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                </div>
-                <div className="filter-group">
-                    <select className="form-control" value={cat} onChange={(e) => setCat(e.target.value)}>
-                        <option value="">All Categories</option>
-                        {cats.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                </div>
-            </div>
-            <div className="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Product Name</th>
-                            <th>Category</th>
-                            <th>Price</th>
-                            <th>Current Stock</th>
-                            <th>Min Threshold</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filtered.length > 0 ? filtered.map((p) => {
-                            const isLow = p.stock <= p.minThreshold;
-                            return (
-                                <tr key={p.id} className={isLow ? "low-stock-row" : ""}>
-                                    <td><strong>{p.name}</strong></td>
-                                    <td>{p.category}</td>
-                                    <td>₹{p.price}</td>
-                                    <td>{p.stock}</td>
-                                    <td>{p.minThreshold}</td>
-                                    <td>
-                                        <span className={`badge badge-${isLow ? "warning" : "success"}`}>
-                                            {isLow ? "Low Stock" : "OK"}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        {(currentUser?.role === "owner" || currentUser?.role === "staff") && (
-                                            <button 
-                                                className="btn btn-secondary" 
-                                                style={{ padding: '4px 8px', fontSize: '12px', background: 'var(--danger)', borderColor: 'var(--danger)', color: 'white' }}
-                                                onClick={() => {
-                                                    if(window.confirm(`Are you sure you want to delete ${p.name}?`)) {
-                                                        deleteProduct(p.id);
-                                                    }
-                                                }}
-                                            >
-                                                Delete
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            );
-                        }) : (
-                            <tr>
-                                <td colSpan={7}>
-                                    <div className="empty-state">
-                                        <h3>No Products Found</h3>
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
+          ) : (
+            <EmptyState
+              icon="box"
+              title="No products yet"
+              text="Add your first product with its SKU and warehouse to start tracking stock."
+              action={
+                <Link to="/dashboard/add-product" className="btn btn-primary">
+                  <Icon name="plus" /> Add product
+                </Link>
+              }
+            />
+          )
+        ) : filters.items.length === 0 ? (
+          <EmptyState
+            icon="search"
+            title="No matching products"
+            text="Try a different SKU or name, or clear some filters."
+            action={<button className="btn btn-secondary" onClick={filters.clearAll}>Clear filters</button>}
+          />
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>SKU</th>
+                  <th>Warehouse</th>
+                  <th className="right">Price</th>
+                  <th>Stock</th>
+                  <th>Status</th>
+                  <th className="right"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filters.items.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <div className="cell-main"><Highlight text={p.name} query={q} /></div>
+                      <div className="cell-sub">
+                        <span className="tag"><Icon name="tag" /><Highlight text={p.category} query={q} /></span>
+                        {p.vendor && <span>· <Highlight text={p.vendor} query={q} /></span>}
+                      </div>
+                    </td>
+                    <td><span className="sku"><Highlight text={p.sku} query={q} /></span></td>
+                    <td>
+                      {p.warehouse ? (
+                        <span className="cell-sub" style={{ marginTop: 0, color: "var(--text-2)" }}>
+                          <Icon name="warehouse" width={14} height={14} />
+                          <Highlight text={p.warehouse} query={q} />
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td className="right num">{money(p.price)}</td>
+                    <td><StockMeter product={p} /></td>
+                    <td><StockBadge product={p} /></td>
+                    <td>
+                      <div className="row-actions">
+                        <Link to={`/dashboard/stock?product=${p.id}`} className="icon-btn" title="Stock in / out" aria-label={`Change stock for ${p.name}`}>
+                          <Icon name="swap" />
+                        </Link>
+                        <Link to={`/dashboard/products/${p.id}/edit`} className="icon-btn" title="Edit" aria-label={`Edit ${p.name}`}>
+                          <Icon name="edit" />
+                        </Link>
+                        <button className="icon-btn danger" title="Delete" aria-label={`Delete ${p.name}`} onClick={() => setToDelete(p)}>
+                          <Icon name="trash" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {toDelete && (
+        <ConfirmDialog
+          title={`Delete ${toDelete.name}?`}
+          message={`This removes ${toDelete.sku} from your catalogue. Past bills and stock history are kept.`}
+          onClose={() => setToDelete(null)}
+          onConfirm={async () => {
+            try {
+              await deleteProduct(toDelete.id);
+              toast.success(`${toDelete.name} deleted`);
+            } catch (err) {
+              toast.error(err.message);
+              throw err;
+            }
+          }}
+        />
+      )}
+    </>
+  );
 }
