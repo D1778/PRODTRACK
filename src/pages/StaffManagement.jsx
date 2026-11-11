@@ -1,177 +1,201 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import Icon from "../components/Icon";
+import { ConfirmDialog, EmptyState, Modal, PageHeader, PasswordInput, Spinner, StatCard } from "../components/ui";
 import { useApp } from "../context/AppContext";
+import { useToast } from "../context/ToastContext";
+import { date, dayKey, initials, money, number } from "../lib/format";
 
-export default function StaffManagement() {
-  const { staffMembers, addStaffMember, removeStaffMember } = useApp();
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+function randomPassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+function AddStaffModal({ onClose }) {
+  const { addStaff } = useApp();
+  const toast = useToast();
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const filteredStaff = staffMembers.filter(s => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    s.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleAddStaff = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     setError("");
-    const res = await addStaffMember(formData);
-    if (res.success) {
-      setShowAddModal(false);
-      setFormData({ name: "", email: "", password: "" });
-    } else {
-      setError(res.message);
+    setBusy(true);
+    try {
+      const s = await addStaff(form);
+      toast.success(`${s.name} can now log in with ${s.email}`);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
     }
   };
 
   return (
-    <div className="page-container">
-      <div className="page-header page-header-flex">
-        <div>
-          <h1 className="page-title">Staff Management</h1>
-          <p className="page-subtitle">Manage your business staff accounts and permissions</p>
-        </div>
-        <button 
-          className="btn btn-primary" 
-          onClick={() => setShowAddModal(true)}
-          style={{ 
-            padding: '10px 20px', 
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: '600'
-          }}
-        >
-          + Add Staff Member
-        </button>
-      </div>
-
-      <div style={{ marginBottom: '24px' }}>
-        <input
-          type="text"
-          className="form-control"
-          placeholder="Search staff members by name or email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ maxWidth: '400px' }}
-        />
-      </div>
-
-      <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--light-surface)', border: '1px solid var(--border)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ padding: '12px' }}>Name</th>
-              <th style={{ padding: '12px' }}>Email</th>
-              <th style={{ padding: '12px' }}>Role</th>
-              <th style={{ padding: '12px' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStaff.length > 0 ? filteredStaff.map((staff) => (
-              <tr key={staff.email} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '12px' }}>{staff.name}</td>
-                <td style={{ padding: '12px' }}>{staff.email}</td>
-                <td style={{ padding: '12px' }}>
-                  <span style={{ 
-                    padding: '4px 8px', 
-                    borderRadius: '6px', 
-                    fontSize: '12px', 
-                    backgroundColor: 'rgba(158, 127, 91, 0.1)', 
-                    color: 'var(--primary)' 
-                  }}>
-                    Staff
-                  </span>
-                </td>
-                <td style={{ padding: '12px' }}>
-                  <button 
-                    className="btn btn-secondary"
-                    style={{ 
-                      padding: '6px 12px', 
-                      fontSize: '12px', 
-                      background: 'var(--danger)', 
-                      borderColor: 'var(--danger)', 
-                      color: 'white' 
-                    }}
-                    onClick={async () => {
-                      if (window.confirm(`Are you sure you want to remove ${staff.name}?`)) {
-                        await removeStaffMember(staff.email);
-                      }
-                    }}
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            )) : (
-              <tr>
-                <td colSpan="4" style={{ padding: '24px', textAlign: 'center', opacity: 0.6 }}>No staff members found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {showAddModal && (
-        <div style={{ 
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 
-        }}>
-          <div className="card" style={{ width: '400px', padding: '32px', borderRadius: '20px', background: 'var(--light-surface)', border: '1px solid var(--border)' }}>
-            <h2 style={{ marginBottom: '20px' }}>Add New Staff</h2>
-            <form onSubmit={handleAddStaff} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="form-label">Full Name</label>
-                <input 
-                  type="text" 
-                  className="form-control"
-                  value={formData.name} 
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
-                  required 
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="form-label">Email Address</label>
-                <input 
-                  type="email" 
-                  className="form-control"
-                  value={formData.email} 
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
-                  required 
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="form-label">Temporary Password</label>
-                <input 
-                  type="password" 
-                  className="form-control"
-                  value={formData.password} 
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
-                  required 
-                />
-              </div>
-              {error && <p style={{ color: 'var(--danger)', fontSize: '14px' }}>{error}</p>}
-              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowAddModal(false)}
-                  className="btn btn-secondary"
-                  style={{ flex: 1 }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{ flex: 1 }}
-                >
-                  Create Account
-                </button>
-              </div>
-            </form>
+    <Modal title="Add a staff member" subtitle="They'll log in with this email and password. Share it with them securely." onClose={onClose}>
+      <form onSubmit={submit}>
+        {error && (
+          <div className="alert alert-error" role="alert">
+            <Icon name="alertCircle" /> {error}
+          </div>
+        )}
+        <div className="field">
+          <label className="label" htmlFor="s-name">Full name</label>
+          <div className="input-wrap">
+            <Icon name="user" />
+            <input id="s-name" className="input" value={form.name} onChange={set("name")} placeholder="Ravi Sharma" required autoFocus />
           </div>
         </div>
+        <div className="field">
+          <label className="label" htmlFor="s-email">Email</label>
+          <div className="input-wrap">
+            <Icon name="mail" />
+            <input id="s-email" type="email" className="input" value={form.email} onChange={set("email")} placeholder="ravi@business.com" required />
+          </div>
+        </div>
+        <div className="field">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <label className="label" htmlFor="s-pass">Temporary password</label>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setForm((f) => ({ ...f, password: randomPassword() }))}>
+              <Icon name="sparkles" /> Generate
+            </button>
+          </div>
+          <PasswordInput id="s-pass" value={form.password} onChange={set("password")} placeholder="At least 8 characters" autoComplete="new-password" />
+          <span className="hint">They can change it later from their Profile page.</span>
+        </div>
+        <div className="modal-foot" style={{ padding: "8px 0 0" }}>
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? <Spinner /> : <Icon name="plus" />} Create login
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export default function StaffManagement() {
+  const { staff, bills, removeStaff } = useApp();
+  const toast = useToast();
+  const [adding, setAdding] = useState(false);
+  const [toRemove, setToRemove] = useState(null);
+  const [q, setQ] = useState("");
+
+  const today = dayKey(new Date());
+  const perf = useMemo(() => {
+    const m = new Map();
+    for (const b of bills) {
+      const cur = m.get(b.createdById) || { total: 0, count: 0, today: 0 };
+      cur.total += b.totalAmount;
+      cur.count += 1;
+      if (dayKey(b.timestamp) === today) cur.today += b.totalAmount;
+      m.set(b.createdById, cur);
+    }
+    return m;
+  }, [bills, today]);
+
+  const filtered = staff.filter((s) => `${s.name} ${s.email}`.toLowerCase().includes(q.toLowerCase()));
+  const staffSalesToday = staff.reduce((sum, s) => sum + (perf.get(s.id)?.today || 0), 0);
+
+  return (
+    <>
+      <PageHeader title="Staff" subtitle="Give your team their own logins. Staff can bill, add products and record stock.">
+        <button className="btn btn-primary" onClick={() => setAdding(true)}>
+          <Icon name="plus" /> Add staff
+        </button>
+      </PageHeader>
+
+      <div className="grid grid-3 mb">
+        <StatCard label="Team members" value={number(staff.length)} icon="users" tone="primary" foot="Plus you, the owner" />
+        <StatCard label="Staff sales today" value={money(staffSalesToday)} icon="rupee" tone="success" foot="Bills created by staff" />
+        <StatCard label="Permissions" value="Staff" icon="shield" tone="info" foot="No access to staff or analytics" />
+      </div>
+
+      <div className="card">
+        {staff.length > 0 && (
+          <div className="filters">
+            <div className="input-wrap search" style={{ maxWidth: 420 }}>
+              <Icon name="search" />
+              <input className="input" type="search" placeholder="Search by name or email…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search staff" />
+            </div>
+          </div>
+        )}
+        {staff.length === 0 ? (
+          <EmptyState
+            icon="users"
+            title="No staff yet"
+            text="Add a team member so they can create bills and manage stock with their own login."
+            action={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" /> Add staff</button>}
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState icon="search" title="No one matches" text="Try a different name or email." />
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Role</th>
+                  <th className="right">Bills</th>
+                  <th className="right">Sales</th>
+                  <th>Joined</th>
+                  <th className="right"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s) => {
+                  const p = perf.get(s.id) || { total: 0, count: 0 };
+                  return (
+                    <tr key={s.id}>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span className="avatar">{initials(s.name)}</span>
+                          <div>
+                            <div className="cell-main">{s.name}</div>
+                            <div className="cell-sub" style={{ marginTop: 0 }}>{s.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span className="badge badge-primary">Staff</span></td>
+                      <td className="right num">{number(p.count)}</td>
+                      <td className="right num">{money(p.total)}</td>
+                      <td className="muted">{date(s.createdAt)}</td>
+                      <td>
+                        <div className="row-actions">
+                          <button className="btn btn-danger-soft btn-sm" onClick={() => setToRemove(s)}>
+                            <Icon name="trash" /> Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {adding && <AddStaffModal onClose={() => setAdding(false)} />}
+      {toRemove && (
+        <ConfirmDialog
+          title={`Remove ${toRemove.name}?`}
+          message="Their login stops working immediately. Bills they created are kept."
+          confirmLabel="Remove"
+          onClose={() => setToRemove(null)}
+          onConfirm={async () => {
+            try {
+              await removeStaff(toRemove.id);
+              toast.success(`${toRemove.name} removed`);
+            } catch (err) {
+              toast.error(err.message);
+              throw err;
+            }
+          }}
+        />
       )}
-    </div>
+    </>
   );
 }

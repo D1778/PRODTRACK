@@ -1,169 +1,190 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Icon from "../components/Icon";
+import { PageHeader, PasswordInput, Spinner, StrengthMeter } from "../components/ui";
 import { useApp } from "../context/AppContext";
+import { useToast } from "../context/ToastContext";
+import { initials } from "../lib/format";
+import { ThemePicker } from "../components/ThemeSwitch";
+
+function DetailsForm() {
+  const { user, updateProfile } = useApp();
+  const toast = useToast();
+  const [form, setForm] = useState({ name: user.name, email: user.email, currentPassword: "" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const emailChanged = form.email.trim().toLowerCase() !== user.email;
+  const dirty = form.name.trim() !== user.name || emailChanged;
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await updateProfile({ name: form.name, email: form.email, currentPassword: form.currentPassword });
+      setForm((f) => ({ ...f, currentPassword: "" }));
+      toast.success("Profile updated");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="card" onSubmit={submit}>
+      <div className="card-head">
+        <div>
+          <h2>Personal details</h2>
+          <p>How you appear on bills and in history.</p>
+        </div>
+      </div>
+      <div className="card-body">
+        {error && <div className="alert alert-error" role="alert"><Icon name="alertCircle" /> {error}</div>}
+        <div className="field">
+          <label className="label" htmlFor="p-name">Full name</label>
+          <input id="p-name" className="input" value={form.name} onChange={set("name")} required />
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="p-email">Email</label>
+          <input id="p-email" type="email" className="input" value={form.email} onChange={set("email")} required />
+        </div>
+        {emailChanged && (
+          <div className="field">
+            <label className="label" htmlFor="p-cur">Current password</label>
+            <PasswordInput id="p-cur" value={form.currentPassword} onChange={set("currentPassword")} placeholder="Confirm it's you" autoComplete="current-password" />
+            <span className="hint">Required to change your login email.</span>
+          </div>
+        )}
+        <button className="btn btn-primary" disabled={!dirty || busy}>
+          {busy ? <Spinner /> : <Icon name="check" />} Save changes
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PasswordForm() {
+  const { updateProfile, user } = useApp();
+  const toast = useToast();
+  const [form, setForm] = useState({ current: "", next: "", confirm: "" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (form.next.length < 8) return setError("New password must be at least 8 characters");
+    if (form.next !== form.confirm) return setError("New passwords don't match");
+    setBusy(true);
+    try {
+      await updateProfile({ name: user.name, email: user.email, currentPassword: form.current, newPassword: form.next });
+      setForm({ current: "", next: "", confirm: "" });
+      toast.success("Password changed");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="card" onSubmit={submit}>
+      <div className="card-head">
+        <div>
+          <h2>Change password</h2>
+          <p>Passwords are stored encrypted with bcrypt.</p>
+        </div>
+      </div>
+      <div className="card-body">
+        {error && <div className="alert alert-error" role="alert"><Icon name="alertCircle" /> {error}</div>}
+        <div className="field">
+          <label className="label" htmlFor="pw-cur">Current password</label>
+          <PasswordInput id="pw-cur" value={form.current} onChange={set("current")} autoComplete="current-password" />
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="pw-new">New password</label>
+          <PasswordInput id="pw-new" value={form.next} onChange={set("next")} autoComplete="new-password" />
+          <StrengthMeter password={form.next} />
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="pw-confirm">Confirm new password</label>
+          <PasswordInput id="pw-confirm" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" />
+        </div>
+        <button className="btn btn-primary" disabled={busy || !form.current || !form.next}>
+          {busy ? <Spinner /> : <Icon name="lock" />} Update password
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export default function Profile() {
-    const { currentUser, logout, updateProfile } = useApp();
-    const navigate = useNavigate();
-    const [feedback, setFeedback] = useState("");
+  const { user, isOwner, logout } = useApp();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [feedback, setFeedback] = useState("");
 
-    // Edit mode state
-    const [isEditing, setIsEditing] = useState(false);
-    const [editName, setEditName] = useState(currentUser?.name || "");
-    const [editEmail, setEditEmail] = useState(currentUser?.email || "");
-    const [editPassword, setEditPassword] = useState("");
-    const [saving, setSaving] = useState(false);
-    const [message, setMessage] = useState(null);
+  const sendFeedback = (e) => {
+    e.preventDefault();
+    const body = encodeURIComponent(feedback.trim());
+    window.location.href = `mailto:?subject=${encodeURIComponent("ProdTrack feedback")}&body=${body}`;
+    toast.info("Opening your email app to send the feedback");
+    setFeedback("");
+  };
 
-    const handleEditToggle = () => {
-        setEditName(currentUser?.name || "");
-        setEditEmail(currentUser?.email || "");
-        setEditPassword("");
-        setIsEditing(true);
-        setMessage(null);
-    };
+  return (
+    <>
+      <PageHeader title="Profile & security" subtitle="Manage your account details and password." />
 
-    const handleCancel = () => {
-        setIsEditing(false);
-        setMessage(null);
-    };
-
-    const handleSave = async () => {
-        if (!editName.trim() || !editEmail.trim()) {
-            setMessage({ type: "error", text: "Name and Email cannot be empty." });
-            return;
-        }
-        setSaving(true);
-        setMessage(null);
-        const result = await updateProfile(editName.trim(), editEmail.trim(), editPassword);
-        setSaving(false);
-        if (result.success) {
-            setIsEditing(false);
-            setMessage({ type: "success", text: result.message });
-        } else {
-            setMessage({ type: "error", text: result.message });
-        }
-    };
-
-    const handleFeedbackSubmit = () => {
-        if (!feedback.trim()) return;
-        alert("Thank you for your feedback! Our team will review it shortly.");
-        setFeedback("");
-    };
-
-    return (
-        <div className="card">
-            <div className="card-header" style={{ marginBottom: "24px" }}>
-                <h2 className="card-title">User Profile & Feedback</h2>
-                <p style={{ color: "var(--text-secondary)", marginTop: "8px" }}>Manage your account details and send us your thoughts.</p>
+      <div className="card mb">
+        <div className="profile-hero">
+          <span className="avatar lg gradient">{initials(user.name)}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2>{user.name}</h2>
+            <div className="muted">{user.email}</div>
+            <div className="meta">
+              <span className="badge badge-primary"><Icon name={isOwner ? "shield" : "user"} /> {isOwner ? "Owner" : "Staff"}</span>
+              <span className="badge"><Icon name="store" /> {user.businessName}</span>
             </div>
-
-            {message && (
-                <div className={`alert alert-${message.type}`} style={{ marginBottom: "20px" }}>
-                    {message.text}
-                </div>
-            )}
-
-            <div className="profile-grid">
-                {/* Left Column: Profile */}
-                <div className="profile-column">
-                    <div className="page-header-flex">
-                        <h3 style={{ fontSize: "18px", fontWeight: "600", color: "var(--text-primary)" }}>Account Details</h3>
-                        {!isEditing && (
-                            <button
-                                className="btn btn-ghost"
-                                onClick={handleEditToggle}
-                                style={{ padding: "8px 16px", fontSize: "13px" }}
-                            >
-                                ✏️ Edit Profile
-                            </button>
-                        )}
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Full Name</label>
-                        <input
-                            type="text"
-                            className="form-control"
-                            value={isEditing ? editName : (currentUser?.name || "")}
-                            onChange={(e) => setEditName(e.target.value)}
-                            readOnly={!isEditing}
-                            style={!isEditing ? { opacity: 0.85 } : { borderColor: "var(--primary)" }}
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Email Address</label>
-                        <input
-                            type="email"
-                            className="form-control"
-                            value={isEditing ? editEmail : (currentUser?.email || "")}
-                            onChange={(e) => setEditEmail(e.target.value)}
-                            readOnly={!isEditing}
-                            style={!isEditing ? { opacity: 0.85 } : { borderColor: "var(--primary)" }}
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Role</label>
-                        <input type="text" className="form-control" value={currentUser?.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1) : ""} readOnly style={{ opacity: isEditing ? 0.5 : 0.85 }} />
-                    </div>
-                    <div className="form-group" style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
-                        <label className="form-label">Business Name</label>
-                        <input type="text" className="form-control" value={currentUser?.businessName || ""} readOnly style={{ opacity: isEditing ? 0.5 : 0.85 }} />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Business Password</label>
-                        <input type="password" className="form-control" value={currentUser?.businessPassword || ""} readOnly style={{ opacity: isEditing ? 0.5 : 0.85 }} />
-                    </div>
-
-                    {isEditing && (
-                        <div className="form-group" style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
-                            <label className="form-label">New Password <span style={{ fontWeight: 400, color: "var(--text-tertiary)" }}>(leave blank to keep current)</span></label>
-                            <input
-                                type="password"
-                                className="form-control"
-                                value={editPassword}
-                                onChange={(e) => setEditPassword(e.target.value)}
-                                placeholder="Enter new password..."
-                                style={{ borderColor: "var(--primary)" }}
-                            />
-                        </div>
-                    )}
-
-                    {isEditing ? (
-                        <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
-                            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                                {saving ? "Saving..." : "💾 Save"}
-                            </button>
-                            <button className="btn btn-secondary" onClick={handleCancel} disabled={saving}>
-                                Cancel
-                            </button>
-                        </div>
-                    ) : (
-                        <button className="btn btn-secondary" onClick={() => { logout(); navigate("/"); }} style={{ marginTop: "16px" }}>Logout</button>
-                    )}
-                </div>
-
-                {/* Right Column: Feedback Form */}
-                <div>
-                    <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "20px", color: "var(--text-primary)" }}>Send Feedback</h3>
-                    <div className="form-group">
-                        <label className="form-label">How can we improve PRODTRACK?</label>
-                        <textarea
-                            className="form-control"
-                            rows="5"
-                            placeholder="Tell us what you love, what you hate, and what you'd like to see next..."
-                            style={{ resize: "vertical", minHeight: "120px" }}
-                            value={feedback}
-                            onChange={(e) => setFeedback(e.target.value)}
-                        ></textarea>
-                    </div>
-                    <button
-                        className="btn btn-primary"
-                        onClick={handleFeedbackSubmit}
-                    >
-                        Submit Feedback
-                    </button>
-                </div>
-            </div>
+          </div>
+          <button className="btn btn-secondary" onClick={() => { logout(); navigate("/login"); }}>
+            <Icon name="logout" /> Log out
+          </button>
         </div>
-    );
+      </div>
+
+      <div className="grid grid-2 mb" style={{ alignItems: "start" }}>
+        <DetailsForm />
+        <PasswordForm />
+      </div>
+
+      <div className="card mb">
+        <div className="card-head">
+          <div>
+            <h2>Appearance</h2>
+            <p>Choose light or dark, or follow your device setting.</p>
+          </div>
+          <ThemePicker />
+        </div>
+      </div>
+
+      <form className="card" onSubmit={sendFeedback}>
+        <div className="card-head">
+          <div>
+            <h2>Send feedback</h2>
+            <p>Tell us what you love, what's missing, or what's broken.</p>
+          </div>
+        </div>
+        <div className="card-body">
+          <textarea className="textarea" rows={4} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="Your thoughts…" aria-label="Feedback" />
+          <button className="btn btn-secondary" style={{ marginTop: 12 }} disabled={!feedback.trim()}>
+            <Icon name="message" /> Send feedback
+          </button>
+        </div>
+      </form>
+    </>
+  );
 }

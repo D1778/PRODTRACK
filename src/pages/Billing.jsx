@@ -1,342 +1,349 @@
-import { useState, useMemo } from "react";
-import { useApp } from "../context/AppContext";
+import { useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import Icon from "../components/Icon";
+import { EmptyState, Highlight, Modal, PageHeader, Spinner, Stepper } from "../components/ui";
+import { useApp } from "../context/AppContext";
+import { useToast } from "../context/ToastContext";
+import { searchTerms } from "../hooks/useProductFilters";
+import { billNo, dateTime, money, number } from "../lib/format";
 
-export default function Billing() {
-  const { products, createBill, bills, currentUser } = useApp();
-  const [cart, setCart] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [message, setMessage] = useState({ text: "", type: "" });
-  const [view, setView] = useState("new"); // "new" or "records"
-  const [selectedBill, setSelectedBill] = useState(null);
-  const [inputQuantities, setInputQuantities] = useState({});
+// jsPDF's built-in fonts have no ₹ glyph, so PDFs use "Rs."
+const pdfMoney = (v) => `Rs. ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
+function downloadPDF(bill, businessName) {
+  const doc = new jsPDF();
+  doc.setFontSize(20);
+  doc.setTextColor(67, 56, 202);
+  doc.text(businessName || "ProdTrack", 105, 20, { align: "center" });
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text("Tax invoice / Bill of sale", 105, 27, { align: "center" });
+  doc.text(`Bill ${billNo(bill)}`, 20, 40);
+  doc.text(`Date: ${new Date(bill.timestamp).toLocaleString("en-IN")}`, 20, 46);
+  doc.text(`Billed by: ${bill.createdBy || "-"}`, 20, 52);
+
+  autoTable(doc, {
+    startY: 60,
+    head: [["Item", "Price", "Qty", "Amount"]],
+    body: bill.items.map((i) => [i.productName, pdfMoney(i.price), i.quantity, pdfMoney(i.price * i.quantity)]),
+    theme: "striped",
+    headStyles: { fillColor: [79, 70, 229] },
+    styles: { fontSize: 10, cellPadding: 4 },
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "center" }, 3: { halign: "right" } },
+  });
+  const y = doc.lastAutoTable.finalY + 12;
+  doc.setFontSize(13);
+  doc.setTextColor(0);
+  doc.text(`Total: ${pdfMoney(bill.totalAmount)}`, 190, y, { align: "right" });
+  doc.setFontSize(10);
+  doc.setTextColor(140);
+  doc.text("Thank you for your business!", 105, y + 20, { align: "center" });
+  doc.save(`bill-${String(bill.number).padStart(4, "0")}.pdf`);
+}
+
+function BillDetails({ bill, businessName, onClose, title = "Bill details" }) {
+  return (
+    <Modal
+      title={title}
+      subtitle={`Bill ${billNo(bill)} · ${dateTime(bill.timestamp)}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
+          <button className="btn btn-primary" onClick={() => downloadPDF(bill, businessName)}>
+            <Icon name="download" /> Download PDF
+          </button>
+        </>
+      }
+    >
+      <dl className="kv">
+        <dt>Billed by</dt><dd>{bill.createdBy}</dd>
+        <dt>Items</dt><dd>{bill.items.reduce((n, i) => n + i.quantity, 0)}</dd>
+      </dl>
+      {bill.items.map((i) => (
+        <div className="receipt-line" key={i.productId}>
+          <span>{i.productName} <span className="muted">× {i.quantity} @ {money(i.price)}</span></span>
+          <span className="num">{money(i.price * i.quantity)}</span>
+        </div>
+      ))}
+      <div className="receipt-total">
+        <span>Total</span>
+        <span className="num" style={{ color: "var(--primary-text)" }}>{money(bill.totalAmount)}</span>
+      </div>
+    </Modal>
   );
+}
 
-  const addToCart = (product) => {
-    const qtyToAdd = parseInt(inputQuantities[product.id]) || 1;
-    if (qtyToAdd <= 0) {
-      setMessage({ text: "Quantity must be at least 1", type: "error" });
+function NewBill({ onCreated }) {
+  const { products, createBill } = useApp();
+  const toast = useToast();
+  const [cart, setCart] = useState([]); // [{ productId, quantity }]
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const categories = useMemo(() => [...new Set(products.map((p) => p.category))].sort(), [products]);
+  const tiles = useMemo(() => {
+    const terms = searchTerms(q);
+    return products.filter((p) => {
+      if (cat && p.category !== cat) return false;
+      const hay = `${p.sku} ${p.name} ${p.category} ${p.warehouse}`.toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    });
+  }, [products, q, cat]);
+
+  const inCart = (id) => cart.find((c) => c.productId === id)?.quantity || 0;
+  const lines = cart.map((c) => ({ ...c, product: byId.get(c.productId) })).filter((l) => l.product);
+  const total = lines.reduce((s, l) => s + l.product.price * l.quantity, 0);
+  const units = lines.reduce((s, l) => s + l.quantity, 0);
+
+  const add = (p, n = 1) => {
+    const have = inCart(p.id);
+    if (have + n > p.stock) {
+      toast.error(p.stock <= 0 ? `${p.name} is out of stock` : `Only ${p.stock} ${p.name} in stock`);
       return;
     }
-    if (product.stock <= 0) {
-      setMessage({ text: "Product out of stock", type: "error" });
-      return;
-    }
-    const existing = cart.find(item => item.productId === product.id);
-    const totalQtyNeeded = (existing ? existing.quantity : 0) + qtyToAdd;
-
-    if (totalQtyNeeded > product.stock) {
-      setMessage({ text: "Insufficient stock", type: "error" });
-      return;
-    }
-
-    if (existing) {
-      setCart(cart.map(item => 
-        item.productId === product.id ? { ...item, quantity: item.quantity + qtyToAdd } : item
-      ));
-    } else {
-      setCart([...cart, { 
-        productId: product.id, 
-        productName: product.name, 
-        quantity: qtyToAdd, 
-        price: product.price 
-      }]);
-    }
-    // Reset input for this product
-    setInputQuantities({ ...inputQuantities, [product.id]: 1 });
-    setMessage({ text: "", type: "" });
+    setCart((c) => (have ? c.map((x) => (x.productId === p.id ? { ...x, quantity: x.quantity + n } : x)) : [...c, { productId: p.id, quantity: n }]));
   };
+  const setQty = (id, quantity) => setCart((c) => c.map((x) => (x.productId === id ? { ...x, quantity } : x)));
+  const remove = (id) => setCart((c) => c.filter((x) => x.productId !== id));
 
-  const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.productId !== productId));
-  };
-
-  const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-  const handleCheckout = async () => {
-    if (cart.length === 0) return;
-    const billData = {
-      items: cart,
-      totalAmount: totalAmount
-    };
-    const res = await createBill(billData);
-    if (res.success) {
-      setCart([]);
-      setMessage({ text: "Bill generated and recorded successfully!", type: "success" });
-      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-    } else {
-      setMessage({ text: res.message || "Checkout failed", type: "error" });
+  // Enter on an exact SKU adds it straight to the bill (works with barcode scanners)
+  const onSearchKey = (e) => {
+    if (e.key !== "Enter") return;
+    const exact = products.find((p) => (p.sku || "").toLowerCase() === q.trim().toLowerCase());
+    const target = exact || (tiles.length === 1 ? tiles[0] : null);
+    if (target) {
+      add(target);
+      setQ("");
     }
   };
 
-  const downloadPDF = (bill) => {
+  const checkout = async () => {
+    setBusy(true);
     try {
-      const doc = new jsPDF();
-      const date = new Date(bill.timestamp).toLocaleString();
-
-      // Business Header
-      doc.setFontSize(22);
-      doc.setTextColor(158, 127, 91); // --primary color
-      doc.text(currentUser?.businessName || "INVENTORY MANAGEMENT SYSTEM", 105, 20, { align: "center" });
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Bill ID: ${bill.id}`, 20, 35);
-      doc.text(`Date & Time: ${date}`, 20, 42);
-      doc.text(`Processed By: ${bill.createdBy || "System"}`, 20, 49);
-
-      // Table
-      const tableData = bill.items.map(item => [
-        item.productName,
-        `₹${item.price}`,
-        item.quantity,
-        `₹${item.price * item.quantity}`
-      ]);
-
-      autoTable(doc, {
-          startY: 60,
-          head: [['Product', 'Price', 'Qty', 'Total']],
-          body: tableData,
-          theme: 'striped',
-          headStyles: { fillColor: [158, 127, 91] },
-          styles: { fontSize: 10, cellPadding: 5 },
-          columnStyles: { 3: { halign: 'right' } }
-      });
-
-      const finalY = (doc).lastAutoTable.finalY + 10;
-      doc.setFontSize(14);
-      doc.setTextColor(0);
-      doc.text(`Grand Total: ₹${bill.totalAmount.toFixed(2)}`, 190, finalY, { align: "right" });
-
-      doc.setFontSize(10);
-      doc.setTextColor(150);
-      doc.text("Thank you for your business!", 105, finalY + 25, { align: "center" });
-
-      doc.save(`bill_${bill.id}.pdf`);
+      const bill = await createBill(lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity) || 1 })));
+      setCart([]);
+      toast.success(`Bill ${billNo(bill)} saved · ${money(bill.totalAmount)}`);
+      onCreated(bill);
     } catch (err) {
-      console.error("PDF Generation Error:", err);
-      alert("Failed to generate PDF. Make sure all items are correctly loaded.");
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
     }
   };
+
+  if (!products.length) {
+    return (
+      <div className="card">
+        <EmptyState icon="box" title="Nothing to sell yet" text="Add products first, then come back to bill customers." action={<Link className="btn btn-primary" to="/dashboard/add-product"><Icon name="plus" /> Add product</Link>} />
+      </div>
+    );
+  }
 
   return (
-    <div className="page-container">
-      <div style={{ display: 'flex', gap: '20px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-        <button 
-          onClick={() => setView("new")} 
-          style={{ 
-            background: 'none', 
-            border: 'none', 
-            fontWeight: 'bold', 
-            color: view === "new" ? 'var(--primary)' : 'var(--text-secondary)',
-            borderBottom: view === "new" ? '2px solid var(--primary)' : 'none',
-            padding: '8px 16px',
-            cursor: 'pointer'
-          }}
-        >
-          New Bill
-        </button>
-        <button 
-          onClick={() => setView("records")} 
-          style={{ 
-            background: 'none', 
-            border: 'none', 
-            fontWeight: 'bold', 
-            color: view === "records" ? 'var(--primary)' : 'var(--text-secondary)',
-            borderBottom: view === "records" ? '2px solid var(--primary)' : 'none',
-            padding: '8px 16px',
-            cursor: 'pointer'
-          }}
-        >
-          Bill Records
-        </button>
-      </div>
-
-      {view === "new" ? (
-        <div className="billing-grid">
-          <div className="inventory-section">
-            <div style={{ marginBottom: '24px' }}>
-              <h1 className="page-title">Generate Bill</h1>
-              <input 
-                type="text" 
-                placeholder="Search products..." 
-                className="form-control"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ marginTop: '12px' }}
+    <div className="pos">
+      <div className="card">
+        <div className="filters">
+          <div className="filters-row">
+            <div className="input-wrap search">
+              <Icon name="barcode" />
+              <input
+                className="input"
+                type="search"
+                placeholder="Scan or type a SKU, or search by name…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={onSearchKey}
+                autoFocus
+                aria-label="Search products to bill"
               />
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-              {filteredProducts.map(product => (
-                <div key={product.id} className="card" style={{ padding: '16px', borderRadius: '12px', textAlign: 'center', background: 'var(--light-surface)', border: '1px solid var(--border)' }}>
-                  <h3 style={{ margin: '0 0 8px 0' }}>{product.name}</h3>
-                  <p style={{ opacity: 0.6, fontSize: '14px', marginBottom: '12px' }}>{product.category}</p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>₹ {parseFloat(product.price).toFixed(2)}</span>
-                    <span style={{ fontSize: '12px', color: product.stock < 10 ? 'var(--warning)' : 'var(--success)' }}>Stock: {product.stock}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      max={product.stock}
-                      value={inputQuantities[product.id] || 1}
-                      onChange={(e) => setInputQuantities({...inputQuantities, [product.id]: e.target.value})}
-                      style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)', textAlign: 'center' }}
-                    />
-                    <button 
-                      onClick={() => addToCart(product)}
-                      className="btn btn-secondary"
-                      disabled={product.stock <= 0}
-                      style={{ flex: 1, padding: '8px', fontSize: '14px' }}
-                    >
-                      Add to Bill
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
-
-          <div className="cart-section">
-            <div className="card" style={{ padding: '24px', borderRadius: '20px', position: 'sticky', top: '24px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 150px)', background: 'var(--light-surface)', border: '1px solid var(--border)' }}>
-              <h2 style={{ marginBottom: '20px' }}>Current Bill</h2>
-              
-              <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px' }}>
-                {cart.length > 0 ? cart.map(item => (
-                  <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
-                    <div>
-                      <h4 style={{ margin: 0 }}>{item.productName}</h4>
-                      <p style={{ margin: 0, fontSize: '12px', opacity: 0.6 }}>{item.quantity} x ₹{item.price.toFixed(2)}</p>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontWeight: 'bold' }}>₹{(item.quantity * item.price).toFixed(2)}</span>
-                      <button onClick={() => removeFromCart(item.productId)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>✕</button>
-                    </div>
-                  </div>
-                )) : (
-                  <p style={{ textAlign: 'center', opacity: 0.6, marginTop: '40px' }}>No items in bill.</p>
-                )}
-              </div>
-
-              <div style={{ borderTop: '2px solid var(--border)', paddingTop: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Total</span>
-                  <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary)' }}>₹{totalAmount.toFixed(2)}</span>
-                </div>
-                
-                {message.text && (
-                  <p style={{ color: message.type === 'success' ? 'var(--success)' : 'var(--danger)', marginBottom: '12px', textAlign: 'center', fontSize: '14px' }}>
-                    {message.text}
-                  </p>
-                )}
-
-                <button 
-                  onClick={handleCheckout}
-                  disabled={cart.length === 0}
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '16px', fontSize: '16px' }}
-                >
-                  Print Bill & Record Sale
+          <div className="chips">
+            <button className={`chip ${!cat ? "active" : ""}`} onClick={() => setCat("")}>All</button>
+            {categories.map((c) => (
+              <button key={c} className={`chip ${cat === c ? "active" : ""}`} onClick={() => setCat(cat === c ? "" : c)}>{c}</button>
+            ))}
+          </div>
+        </div>
+        {tiles.length ? (
+          <div className="product-tiles">
+            {tiles.map((p) => {
+              const qty = inCart(p.id);
+              const disabled = p.stock <= 0;
+              return (
+                <button key={p.id} className={`tile ${disabled ? "disabled" : ""}`} onClick={() => add(p)} disabled={disabled} aria-label={`Add ${p.name} to bill`}>
+                  <span className="cell-sub" style={{ marginTop: 0 }}>
+                    <span className="sku"><Highlight text={p.sku} query={q} /></span>
+                  </span>
+                  <span className="tile-name"><Highlight text={p.name} query={q} /></span>
+                  <span className="tile-meta">
+                    <span className="price">{money(p.price)}</span>
+                    <span className={`badge badge-${disabled ? "danger" : p.stock <= p.minThreshold ? "warning" : "success"}`}>
+                      {disabled ? "Out" : `${p.stock} left`}
+                    </span>
+                  </span>
+                  {qty > 0 && <span className="in-cart">✓ {qty} in bill</span>}
                 </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
-        </div>
-      ) : (
-        <div className="records-section">
-          <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--light-surface)', border: '1px solid var(--border)' }}>
-            <h2 style={{ marginBottom: '20px' }}>Recent Bills</h2>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
-                  <th style={{ padding: '12px' }}>Bill ID</th>
-                  <th style={{ padding: '12px' }}>Date</th>
-                  <th style={{ padding: '12px' }}>Total</th>
-                  <th style={{ padding: '12px' }}>Processed By</th>
-                  <th style={{ padding: '12px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bills.length > 0 ? [...bills].reverse().map(bill => (
-                  <tr key={bill.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '12px' }}>#{String(bill.id).slice(-6)}</td>
-                    <td style={{ padding: '12px' }}>{new Date(bill.timestamp).toLocaleDateString()}</td>
-                    <td style={{ padding: '12px', fontWeight: 'bold' }}>₹{bill.totalAmount.toFixed(2)}</td>
-                    <td style={{ padding: '12px' }}>{bill.createdBy}</td>
-                    <td style={{ padding: '12px', display: 'flex', gap: '8px' }}>
-                      <button 
-                        className="btn btn-secondary" 
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
-                        onClick={() => setSelectedBill(bill)}
-                      >
-                        Details
-                      </button>
-                      <button 
-                        className="btn btn-primary" 
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
-                        onClick={() => downloadPDF(bill)}
-                      >
-                        Download PDF
-                      </button>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan="5" style={{ padding: '24px', textAlign: 'center', opacity: 0.6 }}>No bills recorded yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        ) : (
+          <EmptyState icon="search" title="No products match" text="Try another SKU or name." />
+        )}
+      </div>
+
+      <div className="card cart">
+        <div className="card-head">
+          <div>
+            <h2>Current bill</h2>
+            <p>{units ? `${number(units)} item${units === 1 ? "" : "s"}` : "Tap products to add them"}</p>
           </div>
+          {lines.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setCart([])}>Clear</button>}
         </div>
-      )}
-
-      {selectedBill && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '500px', maxHeight: '80vh', overflowY: 'auto', padding: '32px', borderRadius: '20px', background: 'var(--light-surface)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-              <h2>Bill Details</h2>
-              <button onClick={() => setSelectedBill(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>
-            </div>
-            
-            <div style={{ marginBottom: '20px', fontSize: '14px', opacity: 0.8 }}>
-              <p><strong>Bill ID:</strong> #{selectedBill.id}</p>
-              <p><strong>Date:</strong> {new Date(selectedBill.timestamp).toLocaleString()}</p>
-              <p><strong>Processed By:</strong> {selectedBill.createdBy}</p>
-            </div>
-
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ marginBottom: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>Items</h4>
-              {selectedBill.items.map(item => (
-                <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span>{item.productName} (x{item.quantity})</span>
-                  <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+        <div className="cart-items">
+          {lines.length ? (
+            lines.map((l) => (
+              <div className="cart-line" key={l.productId}>
+                <div>
+                  <div className="name">{l.product.name}</div>
+                  <div className="each">{money(l.product.price)} each · {l.product.sku}</div>
                 </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', borderTop: '2px solid var(--border)', paddingTop: '16px', marginBottom: '24px' }}>
-              <span>Grand Total</span>
-              <span style={{ color: 'var(--primary)' }}>₹{selectedBill.totalAmount.toFixed(2)}</span>
-            </div>
-
-            <button 
-              className="btn btn-primary" 
-              style={{ width: '100%' }}
-              onClick={() => downloadPDF(selectedBill)}
-            >
-              Download PDF Bill
-            </button>
+                <div className="line-total">{money(l.product.price * (Number(l.quantity) || 0))}</div>
+                <div className="controls">
+                  <Stepper small value={l.quantity} min={1} max={l.product.stock} onChange={(v) => setQty(l.productId, v)} />
+                  <button className="icon-btn danger" onClick={() => remove(l.productId)} aria-label={`Remove ${l.product.name}`}>
+                    <Icon name="trash" />
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <EmptyState icon="cart" title="Bill is empty" text="Search or tap a product to start." />
+          )}
+        </div>
+        <div className="cart-total">
+          <div className="row"><span>Items</span><span className="num">{number(units)}</span></div>
+          <div className="grand">
+            <span style={{ fontWeight: 700 }}>Total</span>
+            <strong>{money(total)}</strong>
           </div>
+          <button className="btn btn-primary btn-lg btn-block" onClick={checkout} disabled={!lines.length || busy}>
+            {busy ? <Spinner /> : <Icon name="check" />} Complete sale
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Records({ onOpen }) {
+  const { bills, user } = useApp();
+  const [q, setQ] = useState("");
+  const [mine, setMine] = useState(false);
+
+  const filtered = useMemo(() => {
+    const terms = searchTerms(q.replace("#", ""));
+    return bills.filter((b) => {
+      if (mine && b.createdById !== user?.id) return false;
+      const hay = `${String(b.number).padStart(4, "0")} ${b.createdBy} ${b.items.map((i) => i.productName).join(" ")}`.toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    });
+  }, [bills, q, mine, user]);
+  const total = filtered.reduce((s, b) => s + b.totalAmount, 0);
+
+  return (
+    <div className="card">
+      <div className="filters">
+        <div className="filters-row">
+          <div className="input-wrap search">
+            <Icon name="search" />
+            <input className="input" type="search" placeholder="Search bill number, product or staff…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search bills" />
+          </div>
+          <button className={`chip ${mine ? "active" : ""}`} onClick={() => setMine((m) => !m)} aria-pressed={mine}>Only my bills</button>
+        </div>
+      </div>
+      <div className="results-meta">
+        <span><strong style={{ color: "var(--text)" }}>{filtered.length}</strong> bills · {money(total)}</span>
+      </div>
+      {filtered.length === 0 ? (
+        <EmptyState icon="receipt" title={bills.length ? "No bills match" : "No bills yet"} text={bills.length ? "Try a different search." : "Completed sales will be listed here."} />
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Bill</th>
+                <th>Date</th>
+                <th>Items</th>
+                <th>Billed by</th>
+                <th className="right">Total</th>
+                <th className="right"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((b) => (
+                <tr key={b.id}>
+                  <td><span className="cell-main mono">{billNo(b)}</span></td>
+                  <td className="muted" style={{ whiteSpace: "nowrap" }}>{dateTime(b.timestamp)}</td>
+                  <td style={{ maxWidth: 280 }}>
+                    <div className="cell-sub" style={{ marginTop: 0 }}>
+                      {b.items.slice(0, 2).map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
+                      {b.items.length > 2 && ` +${b.items.length - 2} more`}
+                    </div>
+                  </td>
+                  <td>{b.createdBy}</td>
+                  <td className="right num" style={{ fontWeight: 700 }}>{money(b.totalAmount)}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="icon-btn" onClick={() => onOpen(b)} title="View" aria-label={`View bill ${billNo(b)}`}><Icon name="file" /></button>
+                      <button className="icon-btn" onClick={() => downloadPDF(b, user?.businessName)} title="Download PDF" aria-label={`Download bill ${billNo(b)}`}><Icon name="download" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
+  );
+}
+
+export default function Billing() {
+  const { user } = useApp();
+  const [params, setParams] = useSearchParams();
+  const view = params.get("view") === "records" ? "records" : "new";
+  const [open, setOpen] = useState(null); // { bill, fresh }
+
+  const setView = (v) => setParams(v === "records" ? { view: "records" } : {}, { replace: true });
+
+  return (
+    <>
+      <PageHeader title="Billing" subtitle="Ring up sales. Stock updates automatically when a bill is completed." />
+      <div className="tabs" role="tablist">
+        <button role="tab" aria-selected={view === "new"} className={view === "new" ? "active" : ""} onClick={() => setView("new")}>
+          <Icon name="cart" /> New bill
+        </button>
+        <button role="tab" aria-selected={view === "records"} className={view === "records" ? "active" : ""} onClick={() => setView("records")}>
+          <Icon name="receipt" /> Bill records
+        </button>
+      </div>
+
+      {view === "new" ? <NewBill onCreated={(bill) => setOpen({ bill, fresh: true })} /> : <Records onOpen={(bill) => setOpen({ bill })} />}
+
+      {open && (
+        <BillDetails
+          bill={open.bill}
+          businessName={user?.businessName}
+          title={open.fresh ? "Sale complete 🎉" : "Bill details"}
+          onClose={() => setOpen(null)}
+        />
+      )}
+    </>
   );
 }
