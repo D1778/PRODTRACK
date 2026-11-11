@@ -23,6 +23,13 @@
 -   **Frontend**: React 19 + Vite, React Router, plain CSS design system.
 -   **Deployment**: Render (backend) & Vercel (frontend), or a single Go server serving both.
 
+## 🧰 Tools Used
+-   **VS Code**: code editor used for development
+-   **Claude** (Anthropic): AI assistant used for coding help, debugging and testing
+-   **ChatGPT** (OpenAI): AI assistant used for coding help and explanations
+-   **Git & GitHub**: version control and collaboration
+-   **MongoDB Atlas**: cloud database
+
 ## 🔒 Concurrency
 When several employees work on the same inventory at the same time:
 -   **Stock** only changes through atomic increments; a removal only succeeds if enough stock is left, so stock never goes negative and no update is lost.
