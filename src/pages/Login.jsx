@@ -1,66 +1,87 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import AuthLayout from "../components/AuthLayout";
+import Icon from "../components/Icon";
+import { PasswordInput, Spinner } from "../components/ui";
 import { useApp } from "../context/AppContext";
+import { useToast } from "../context/ToastContext";
 
 export default function Login() {
   const { login } = useApp();
+  const toast = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const handleLogin = async (e) => {
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e) => {
     e.preventDefault();
     setError("");
-
-    const email = e.target.email.value;
-    const password = e.target.password.value;
-    const businessName = e.target.businessName.value;
-    const businessPassword = e.target.businessPassword.value;
-
-    setLoading(true);
-    const result = await login(email, password, businessName, businessPassword);
-    setLoading(false);
-
-    if (result.success) {
-      navigate("/dashboard");
-    } else {
-      setError(result.message);
+    setBusy(true);
+    try {
+      const user = await login(form.email, form.password);
+      toast.success(`Welcome back, ${user.name.split(" ")[0]}!`);
+      navigate(location.state?.from || "/dashboard", { replace: true });
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
     }
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <Link to="/"><h1>PRODTRACK</h1></Link>
-          <p>Inventory Management System</p>
+    <AuthLayout>
+      <h1>Welcome back</h1>
+      <p className="sub">Log in to manage your inventory and sales.</p>
+
+      {error && (
+        <div className="alert alert-error" role="alert">
+          <Icon name="alertCircle" />
+          {error}
         </div>
-        {error && <div className="alert alert-error">{error}</div>}
-        <form onSubmit={handleLogin}>
-          <div className="form-group">
-            <label className="form-label">Email Address</label>
-            <input type="email" name="email" className="form-control" placeholder="Enter your email" required />
+      )}
+
+      <form onSubmit={submit} noValidate={false}>
+        <div className="field">
+          <label className="label" htmlFor="email">Email</label>
+          <div className="input-wrap">
+            <Icon name="mail" />
+            <input
+              id="email"
+              type="email"
+              className="input"
+              placeholder="you@business.com"
+              value={form.email}
+              onChange={set("email")}
+              autoComplete="email"
+              autoFocus
+              required
+            />
           </div>
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input type="password" name="password" className="form-control" placeholder="Enter your password" required />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Business Name</label>
-            <input type="text" name="businessName" className="form-control" placeholder="Enter business name" required />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Business Password</label>
-            <input type="password" name="businessPassword" className="form-control" placeholder="Enter business password" required />
-          </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
-        <div className="auth-footer">
-          Don't have an account? <Link to="/signup" className="auth-link">Sign up here</Link>
         </div>
-      </div>
-    </div>
+        <div className="field">
+          <label className="label" htmlFor="password">Password</label>
+          <PasswordInput
+            id="password"
+            value={form.password}
+            onChange={set("password")}
+            placeholder="Your password"
+            autoComplete="current-password"
+          />
+        </div>
+        <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy}>
+          {busy ? <Spinner /> : null}
+          {busy ? "Logging in…" : "Log in"}
+          {!busy && <Icon name="arrowRight" />}
+        </button>
+      </form>
+
+      <p className="auth-switch">
+        New to ProdTrack? <Link to="/signup">Create a free account</Link>
+      </p>
+      <p className="auth-legal">Staff accounts are created by the business owner from the Staff page.</p>
+    </AuthLayout>
   );
 }

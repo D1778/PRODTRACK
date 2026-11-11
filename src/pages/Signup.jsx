@@ -1,75 +1,91 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import AuthLayout from "../components/AuthLayout";
+import Icon from "../components/Icon";
+import { PasswordInput, Spinner, StrengthMeter } from "../components/ui";
 import { useApp } from "../context/AppContext";
+import { useToast } from "../context/ToastContext";
 
 export default function Signup() {
   const { signup } = useApp();
+  const toast = useToast();
   const navigate = useNavigate();
-  const [message, setMessage] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ name: "", businessName: "", email: "", password: "" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const handleSignup = async (e) => {
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e) => {
     e.preventDefault();
-    setMessage(null);
-
-    setLoading(true);
-    const result = await signup(
-      e.target.fullName.value,
-      e.target.email.value,
-      e.target.password.value,
-      "owner",
-      e.target.businessName.value,
-      e.target.businessPassword.value
-    );
-    setLoading(false);
-
-    if (result.success) {
-      setMessage({ ok: true, text: result.message + " Redirecting..." });
-      setTimeout(() => { setMessage(null); navigate("/login"); }, 1500);
-    } else {
-      setMessage({ ok: false, text: result.message });
+    setError("");
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+    setBusy(true);
+    try {
+      const user = await signup(form);
+      toast.success(`Your workspace “${user.businessName}” is ready!`);
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
     }
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <Link to="/"><h1>PRODTRACK</h1></Link>
-          <p>Inventory Management System</p>
+    <AuthLayout>
+      <h1>Create your account</h1>
+      <p className="sub">Set up your business in under a minute. No card needed.</p>
+
+      {error && (
+        <div className="alert alert-error" role="alert">
+          <Icon name="alertCircle" />
+          {error}
         </div>
-        {message && (
-          <div className={`alert ${message.ok ? "alert-success" : "alert-error"}`}>{message.text}</div>
-        )}
-        <form onSubmit={handleSignup}>
-          <div className="form-group">
-            <label className="form-label">Full Name</label>
-            <input type="text" name="fullName" className="form-control" placeholder="Enter your full name" required />
+      )}
+
+      <form onSubmit={submit}>
+        <div className="field-row">
+          <div className="field">
+            <label className="label" htmlFor="name">Your name</label>
+            <div className="input-wrap">
+              <Icon name="user" />
+              <input id="name" className="input" placeholder="Asha Kumar" value={form.name} onChange={set("name")} autoComplete="name" autoFocus required />
+            </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Email Address</label>
-            <input type="email" name="email" className="form-control" placeholder="Enter your email" required />
+          <div className="field">
+            <label className="label" htmlFor="business">Business name</label>
+            <div className="input-wrap">
+              <Icon name="store" />
+              <input id="business" className="input" placeholder="Asha Stores" value={form.businessName} onChange={set("businessName")} autoComplete="organization" required />
+            </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input type="password" name="password" className="form-control" placeholder="Create a password" required />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Business Name</label>
-            <input type="text" name="businessName" className="form-control" placeholder="e.g. My Awesome Business" required />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Business Password</label>
-            <input type="password" name="businessPassword" className="form-control" placeholder="Create a business password" required />
-          </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? "Creating Account..." : "Create Account"}
-          </button>
-        </form>
-        <div className="auth-footer">
-          Already have an account? <Link to="/login" className="auth-link">Login here</Link>
         </div>
-      </div>
-    </div>
+        <div className="field">
+          <label className="label" htmlFor="email">Work email</label>
+          <div className="input-wrap">
+            <Icon name="mail" />
+            <input id="email" type="email" className="input" placeholder="you@business.com" value={form.email} onChange={set("email")} autoComplete="email" required />
+          </div>
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="password">Password</label>
+          <PasswordInput id="password" value={form.password} onChange={set("password")} placeholder="Create a password" autoComplete="new-password" />
+          <StrengthMeter password={form.password} />
+        </div>
+        <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy}>
+          {busy ? <Spinner /> : null}
+          {busy ? "Creating your workspace…" : "Create account"}
+          {!busy && <Icon name="arrowRight" />}
+        </button>
+      </form>
+
+      <p className="auth-switch">
+        Already have an account? <Link to="/login">Log in</Link>
+      </p>
+      <p className="auth-legal">You'll be the owner and can invite staff from your dashboard.</p>
+    </AuthLayout>
   );
 }
