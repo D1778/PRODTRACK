@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Go backend build output
+backend/*.exe
+backend/prodtrack-backend
+backend/test_data.json
+
+# Secrets - keep keys out of git (commit the .env.example files instead)
+.env
+.env.*
+!.env.example
+backend/.env
