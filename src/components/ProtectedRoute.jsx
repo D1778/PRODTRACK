@@ -1,12 +1,12 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import Icon from "./Icon";
+import Logo from "./Logo";
 
 function Splash() {
   return (
     <div className="splash" aria-busy="true" aria-label="Loading">
       <span className="brand-mark">
-        <Icon name="logo" />
+        <Logo />
       </span>
     </div>
   );
