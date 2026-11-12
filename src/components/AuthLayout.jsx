@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import Icon from "./Icon";
+import Logo from "./Logo";
 import ThemeSwitch from "./ThemeSwitch";
 
 const POINTS = [
@@ -15,7 +16,7 @@ export default function AuthLayout({ children }) {
       <aside className="auth-aside">
         <Link to="/" className="brand">
           <span className="brand-mark">
-            <Icon name="logo" />
+            <Logo />
           </span>
           PRODTRACK
         </Link>
@@ -61,7 +62,7 @@ export default function AuthLayout({ children }) {
         <div className="auth-card">
           <Link to="/" className="mobile-brand l-brand">
             <span className="brand-mark">
-              <Icon name="logo" />
+              <Logo />
             </span>
             PRODTRACK
           </Link>
