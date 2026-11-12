@@ -5,7 +5,6 @@ import { PageHeader, PasswordInput, Spinner, StrengthMeter } from "../components
 import { useApp } from "../context/AppContext";
 import { useToast } from "../context/ToastContext";
 import { initials } from "../lib/format";
-import { ThemePicker } from "../components/ThemeSwitch";
 
 function DetailsForm() {
   const { user, updateProfile } = useApp();
@@ -124,16 +123,6 @@ function PasswordForm() {
 export default function Profile() {
   const { user, isOwner, logout } = useApp();
   const navigate = useNavigate();
-  const toast = useToast();
-  const [feedback, setFeedback] = useState("");
-
-  const sendFeedback = (e) => {
-    e.preventDefault();
-    const body = encodeURIComponent(feedback.trim());
-    window.location.href = `mailto:?subject=${encodeURIComponent("ProdTrack feedback")}&body=${body}`;
-    toast.info("Opening your email app to send the feedback");
-    setFeedback("");
-  };
 
   return (
     <>
@@ -160,31 +149,6 @@ export default function Profile() {
         <DetailsForm />
         <PasswordForm />
       </div>
-
-      <div className="card mb">
-        <div className="card-head">
-          <div>
-            <h2>Appearance</h2>
-            <p>Choose light or dark, or follow your device setting.</p>
-          </div>
-          <ThemePicker />
-        </div>
-      </div>
-
-      <form className="card" onSubmit={sendFeedback}>
-        <div className="card-head">
-          <div>
-            <h2>Send feedback</h2>
-            <p>Tell us what you love, what's missing, or what's broken.</p>
-          </div>
-        </div>
-        <div className="card-body">
-          <textarea className="textarea" rows={4} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="Your thoughts…" aria-label="Feedback" />
-          <button className="btn btn-secondary" style={{ marginTop: 12 }} disabled={!feedback.trim()}>
-            <Icon name="message" /> Send feedback
-          </button>
-        </div>
-      </form>
     </>
   );
 }
