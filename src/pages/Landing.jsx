@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import Icon from "../components/Icon";
+import Logo from "../components/Logo";
 import ThemeSwitch from "../components/ThemeSwitch";
 import { useApp } from "../context/AppContext";
 
@@ -23,7 +24,7 @@ export default function Landing() {
       <nav className="l-nav">
         <div className="l-container">
           <Link to="/" className="l-brand">
-            <span className="brand-mark"><Icon name="logo" /></span>
+            <span className="brand-mark"><Logo /></span>
             PRODTRACK
           </Link>
           <div className="l-links">
@@ -153,7 +154,7 @@ export default function Landing() {
       <footer className="l-footer">
         <div className="l-container">
           <span className="l-brand" style={{ fontSize: 15 }}>
-            <span className="brand-mark" style={{ width: 30, height: 30 }}><Icon name="logo" /></span>
+            <span className="brand-mark" style={{ width: 30, height: 30 }}><Logo /></span>
             PRODTRACK
           </span>
           <span>Built with Go, MongoDB and React · by Dinu & Kunnal</span>
