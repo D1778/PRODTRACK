@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import Icon from "./Icon";
+import Logo from "./Logo";
 import { useApp } from "../context/AppContext";
 import { initials } from "../lib/format";
 
@@ -39,7 +40,7 @@ export default function Sidebar({ onNavigate }) {
     <aside className="sidebar" aria-label="Main navigation">
       <div className="sidebar-brand">
         <span className="brand-mark">
-          <Icon name="logo" />
+          <Logo />
         </span>
         <span className="brand-name">
           PRODTRACK
