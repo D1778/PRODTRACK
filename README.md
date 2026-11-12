@@ -4,9 +4,6 @@
 
 ## 🚀 Live Demo
 -   **Frontend (Vercel):** (https://prodtrack-coral.vercel.app/)
--   **Backend (Render):** (https://prodtrack-ni1v.onrender.com)
-
-> The live demo runs the previous version until it is redeployed (see *Deployment* below).
 
 ## ✨ Key Features
 -   **Simple accounts**: owners sign up with name, business name, email and password; owners create staff logins.
@@ -22,7 +19,7 @@
 ## 🛠️ Technology Stack
 -   **Backend**: Go, MongoDB (Atlas) with the official driver, JWT (`golang-jwt`), bcrypt.
 -   **Frontend**: React 19 + Vite, React Router, plain CSS design system.
--   **Deployment**: Render (backend) & Vercel (frontend), or a single Go server serving both.
+-   **Deployment**: Vercel (frontend), or a single Go server serving both frontend and API.
 
 ## 🧰 Tools Used
 -   **VS Code**: code editor used for development
@@ -86,8 +83,8 @@ prodtrack/
 -   `npm run lint` / `npm run build`
 
 ## 🌐 Deployment
--   **Render (backend)**: set `MONGODB_URI`, `JWT_SECRET` and `CORS_ORIGIN=https://<your-vercel-app>`; allow Render's IPs (or `0.0.0.0/0`) in Atlas Network Access.
--   **Vercel (frontend)**: set `VITE_API_URL=https://<your-render-app>/api`. Leave **Settings → Build and Deployment → Root Directory** empty, because the React app lives in the repository root (there is no `frontend/` folder). Framework preset **Vite**, build command `npm run build`, output directory `dist`.
+-   **Backend (Go)**: run it on any host (or locally) with `MONGODB_URI`, `JWT_SECRET` and, if the frontend is hosted separately, `CORS_ORIGIN=https://<your-frontend-url>`. In Atlas Network Access, allow the host's IP (or `0.0.0.0/0`).
+-   **Vercel (frontend)**: set `VITE_API_URL=https://<your-backend-url>/api`. Leave **Settings → Build and Deployment → Root Directory** empty, because the React app lives in the repository root (there is no `frontend/` folder). Framework preset **Vite**, build command `npm run build`, output directory `dist`.
 
 > **Troubleshooting:** a build that fails within about a second with *"The specified Root Directory 'frontend' does not exist"* means Vercel still points at the old folder layout. Clear the Root Directory setting and redeploy.
 
@@ -106,7 +103,7 @@ The database was moved from a personal Atlas account to a new cluster created un
     ```
     Add `--drop` to replace collections that already exist in the new database.
 5.  **Verify**: compare document counts per collection in the old and new databases. Copy the `counters` collection too, or bill numbers and auto-generated SKUs would restart from 1.
-6.  **Switch**: set `MONGODB_URI` in `backend/.env` (and on Render) to the new connection string, keep `JWT_SECRET` unchanged so users stay logged in, then run `npm run dev`.
+6.  **Switch**: set `MONGODB_URI` in `backend/.env` to the new connection string, keep `JWT_SECRET` unchanged so users stay logged in, then run `npm run dev`.
 
 The old database is never modified, so switching back only means restoring the old `MONGODB_URI`. `mongo-backup/` is git-ignored because it contains password hashes and business data; delete it once everything works.
 
