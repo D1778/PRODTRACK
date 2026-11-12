@@ -4,6 +4,9 @@
 
 ## 🚀 Live Demo
 -   **Frontend (Vercel):** (https://prodtrack-coral.vercel.app/)
+-   **Backend API (Render):** (https://prodtrack-api-iyk3.onrender.com). It only serves the API, so opening this address shows "ProdTrack API is running"; use the Vercel link to open the app.
+
+> The backend runs on Render's free plan, which sleeps when idle. The first request after a quiet period can take 30 to 60 seconds.
 
 ## ✨ Key Features
 -   **Simple accounts**: owners sign up with name, business name, email and password; owners create staff logins.
@@ -19,7 +22,7 @@
 ## 🛠️ Technology Stack
 -   **Backend**: Go, MongoDB (Atlas) with the official driver, JWT (`golang-jwt`), bcrypt.
 -   **Frontend**: React 19 + Vite, React Router, plain CSS design system.
--   **Deployment**: Vercel (frontend), or a single Go server serving both frontend and API.
+-   **Deployment**: Vercel (frontend) and Render (Go backend), or a single Go server serving both frontend and API.
 
 ## 🧰 Tools Used
 -   **VS Code**: code editor used for development
@@ -83,10 +86,13 @@ prodtrack/
 -   `npm run lint` / `npm run build`
 
 ## 🌐 Deployment
--   **Backend (Go)**: run it on any host (or locally) with `MONGODB_URI`, `JWT_SECRET` and, if the frontend is hosted separately, `CORS_ORIGIN=https://<your-frontend-url>`. In Atlas Network Access, allow the host's IP (or `0.0.0.0/0`).
--   **Vercel (frontend)**: set `VITE_API_URL=https://<your-backend-url>/api`. Leave **Settings → Build and Deployment → Root Directory** empty, because the React app lives in the repository root (there is no `frontend/` folder). Framework preset **Vite**, build command `npm run build`, output directory `dist`.
+-   **Render (Go backend)**: create a *Web Service* from this repository with **Language** `Go`, **Root Directory** `backend`, **Build Command** `go build -o app .` and **Start Command** `./app`. Set these environment variables: `MONGODB_URI`, `MONGODB_DB=prodtrack`, `JWT_SECRET`, `CORS_ORIGIN=https://<your-vercel-app>` (no trailing slash) and, if the build needs it, `GO_VERSION=1.26.0`. Render sets `PORT` itself. In Atlas Network Access, allow `0.0.0.0/0` because Render's IP addresses can change.
+-   **Vercel (frontend)**: set `VITE_API_URL=https://<your-render-app>.onrender.com/api` (Project Settings → Environment Variables) and **redeploy**, because Vite reads it at build time. Leave **Settings → Build and Deployment → Root Directory** empty, because the React app lives in the repository root (there is no `frontend/` folder). Framework preset **Vite**, build command `npm run build`, output directory `dist`.
 
-> **Troubleshooting:** a build that fails within about a second with *"The specified Root Directory 'frontend' does not exist"* means Vercel still points at the old folder layout. Clear the Root Directory setting and redeploy.
+> **Troubleshooting:**
+> -   The login page says *"Can't reach the server. Check that the backend is running"*: the frontend has no backend to call. Check that the Render service is running and that `VITE_API_URL` is set on Vercel (then redeploy). Locally, it usually means MongoDB Atlas is refusing your IP: see *Atlas "tls: internal error"* below.
+> -   **Atlas "tls: internal error" / backend stops at start-up:** Atlas Network Access doesn't allow your current IP address (it changes when you switch Wi-Fi or hotspot). Add it under Atlas → Network Access, or allow `0.0.0.0/0`, wait until it shows *Active*, then restart `npm run dev`.
+> -   A Vercel build that fails within about a second with *"The specified Root Directory 'frontend' does not exist"* means Vercel still points at the old folder layout. Clear the Root Directory setting and redeploy.
 
 ## 🗄️ Moving to a New MongoDB Database
 The database was moved from a personal Atlas account to a new cluster created under the project's own account, keeping all data.
@@ -116,6 +122,7 @@ The old database is never modified, so switching back only means restoring the o
 -   **Developer experience**: `npm run dev` starts the Go backend automatically; README updated with tools used.
 -   **Database migration**: moved all data to a new Atlas cluster (see the section above).
 -   **Deployment fix**: corrected the Vercel Root Directory so frontend builds succeed after the project restructure.
+-   **Backend hosting**: deployed the Go backend as a new Render web service and pointed the Vercel frontend at it with `VITE_API_URL`; opened Atlas Network Access (`0.0.0.0/0`) so the hosted backend and local development can connect.
 -   **UI polish**: new ProdTrack logo and favicon (the name is shown beside the logo), and the feedback form and the Appearance card were removed from the Profile page (the theme toggle stays in the top bar).
 
 ---
