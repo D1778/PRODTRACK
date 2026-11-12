@@ -16,7 +16,8 @@
 -   **Log book (owners)**: everything added, sold, removed and changed on any day, with opening/closing stock per product, a timeline of who did what, CSV export and print.
 -   **Safe with many users at once**: see *Concurrency* below.
 -   **Dashboard, alerts and history**: revenue chart, best sellers, low-stock alerts, full history.
--   **Light / dark mode** switch and a mobile-friendly layout.
+-   **Light / dark mode** switch (top bar) and a mobile-friendly layout.
+-   **Custom branding**: a ProdTrack logo (hexagon with a checklist clipboard) used in the sidebar, login/signup, landing page, loading screen and browser tab.
 
 ## 🛠️ Technology Stack
 -   **Backend**: Go, MongoDB (Atlas) with the official driver, JWT (`golang-jwt`), bcrypt.
@@ -62,8 +63,8 @@ npm run dev
 ### Project Layout
 ```
 prodtrack/
-├── src/                React app (pages, components, hooks, lib)
-├── public/             Static files
+├── src/                React app (pages, components incl. Logo.jsx, hooks, lib)
+├── public/             Static files (favicon.svg)
 ├── scripts/            Dev helpers (Go launcher, Vite backend plugin)
 ├── backend/            Go API server
 │   ├── main.go         Server setup and routes
@@ -86,7 +87,39 @@ prodtrack/
 
 ## 🌐 Deployment
 -   **Render (backend)**: set `MONGODB_URI`, `JWT_SECRET` and `CORS_ORIGIN=https://<your-vercel-app>`; allow Render's IPs (or `0.0.0.0/0`) in Atlas Network Access.
--   **Vercel (frontend)**: set `VITE_API_URL=https://<your-render-app>/api`.
+-   **Vercel (frontend)**: set `VITE_API_URL=https://<your-render-app>/api`. Leave **Settings → Build and Deployment → Root Directory** empty, because the React app lives in the repository root (there is no `frontend/` folder). Framework preset **Vite**, build command `npm run build`, output directory `dist`.
+
+> **Troubleshooting:** a build that fails within about a second with *"The specified Root Directory 'frontend' does not exist"* means Vercel still points at the old folder layout. Clear the Root Directory setting and redeploy.
+
+## 🗄️ Moving to a New MongoDB Database
+The database was moved from a personal Atlas account to a new cluster created under the project's own account, keeping all data.
+
+1.  **Install the tools** (PowerShell): `winget install MongoDB.DatabaseTools` and `winget install MongoDB.Shell`. If `mongodump` is not recognised afterwards, add the tools folder (for example `C:\Program Files\MongoDB\Tools\100\bin`) to your PATH and restart VS Code.
+2.  **Create the new cluster** in Atlas: add a database user (read and write to any database), allow your IP in Network Access, and copy the connection string.
+3.  **Stop the app**, then back up the old database (the connection string comes from `backend/.env`):
+    ```powershell
+    mongodump --uri $OLD --db prodtrack --out .\mongo-backup
+    ```
+4.  **Restore into the new cluster**:
+    ```powershell
+    mongorestore --uri $NEW --nsInclude "prodtrack.*" .\mongo-backup
+    ```
+    Add `--drop` to replace collections that already exist in the new database.
+5.  **Verify**: compare document counts per collection in the old and new databases. Copy the `counters` collection too, or bill numbers and auto-generated SKUs would restart from 1.
+6.  **Switch**: set `MONGODB_URI` in `backend/.env` (and on Render) to the new connection string, keep `JWT_SECRET` unchanged so users stay logged in, then run `npm run dev`.
+
+The old database is never modified, so switching back only means restoring the old `MONGODB_URI`. `mongo-backup/` is git-ignored because it contains password hashes and business data; delete it once everything works.
+
+## 📝 Project Timeline: What Has Been Done
+-   **Foundation**: frontend moved to the project root with the Go backend in `backend/`; `.env` configuration; compiled files removed from the repo.
+-   **Database and auth**: MongoDB Atlas connection; JWT login with bcrypt-hashed passwords; simple signup and staff accounts.
+-   **Core APIs**: products, stock, billing and the daily log book, all using MongoDB transactions for concurrency safety; automated tests including concurrent-update tests.
+-   **Frontend redesign**: new UI and shared components, API client with JWT and toast messages, dashboard layout, sidebar and top bar, light/dark mode, redesigned login, signup and landing pages.
+-   **Inventory features**: SKU and warehouse search and filters, an owner-only log book page, updated billing, stock and history pages.
+-   **Developer experience**: `npm run dev` starts the Go backend automatically; README updated with tools used.
+-   **Database migration**: moved all data to a new Atlas cluster (see the section above).
+-   **Deployment fix**: corrected the Vercel Root Directory so frontend builds succeed after the project restructure.
+-   **UI polish**: new ProdTrack logo and favicon (the name is shown beside the logo), and the feedback form and the Appearance card were removed from the Profile page (the theme toggle stays in the top bar).
 
 ---
 
