@@ -29,7 +29,7 @@ func main() {
 	store, err := connectStore(ctx, cfg.MongoURI, cfg.MongoDB)
 	cancel()
 	if err != nil {
-		log.Fatalf("Could not connect to MongoDB (%v).\nSet MONGODB_URI in backend/.env - see backend/.env.example.", err)
+		log.Fatalf("Could not connect to MongoDB.\n%s\n(details: %v)", connectionHint(err), err)
 	}
 	defer store.Close()
 	log.Printf("Connected to MongoDB database %q (transactions: %v)", cfg.MongoDB, store.txn)
@@ -169,4 +169,20 @@ func frontendHandler(staticDir string) http.Handler {
 		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 	})
+}
+
+// connectionHint turns common MongoDB connection errors into a fix the user can act on.
+func connectionHint(err error) string {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "tls: internal error"), strings.Contains(msg, "connection reset"), strings.Contains(msg, "ReplicaSetNoPrimary"):
+		return "Atlas refused the connection. Your IP address is probably not allowed: open MongoDB Atlas > Network Access > Add IP Address > Add Current IP Address, wait about a minute, then restart."
+	case strings.Contains(msg, "bad auth"), strings.Contains(msg, "Authentication failed"):
+		return "Wrong database user name or password in MONGODB_URI (backend/.env). Check Atlas > Database Access."
+	case strings.Contains(msg, "no such host"), strings.Contains(msg, "lookup"):
+		return "The cluster address in MONGODB_URI can't be found. Check your internet connection and the connection string."
+	case strings.Contains(msg, "connection refused"):
+		return "Nothing is listening at the MongoDB address. If you use a local MongoDB, make sure it is running."
+	}
+	return "Check MONGODB_URI in backend/.env (see backend/.env.example) and your internet connection."
 }
