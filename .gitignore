@@ -33,3 +33,5 @@ backend/test_data.json
 .env.*
 !.env.example
 backend/.env
+
+mongo-backup/
