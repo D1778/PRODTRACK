@@ -22,6 +22,12 @@ import (
 type App struct {
 	store  *Store
 	tokens TokenService
+	mailer Mailer
+	// domainCheck reports whether an email domain can receive mail. nil means
+	// the real DNS lookup; tests replace it so they don't need a network.
+	domainCheck func(ctx context.Context, domain string) bool
+	// checker asks whether a mailbox really exists before a code is sent. nil = no check.
+	checker MailboxChecker
 }
 
 // ============================================================================
@@ -82,12 +88,17 @@ type UserView struct {
 	Role         string `json:"role"`
 	BusinessID   string `json:"businessId"`
 	BusinessName string `json:"businessName"`
+	Avatar       string `json:"avatar"`       // profile picture (data URL) or ""
+	BusinessLogo string `json:"businessLogo"` // business picture (data URL) or ""
 }
 
 func (a *App) userView(ctx context.Context, u User) UserView {
 	var b Business
 	_ = a.store.businesses.FindOne(ctx, bson.M{"_id": u.BusinessID}).Decode(&b)
-	return UserView{ID: u.ID.Hex(), Name: u.Name, Email: u.Email, Role: u.Role, BusinessID: u.BusinessID.Hex(), BusinessName: b.Name}
+	return UserView{
+		ID: u.ID.Hex(), Name: u.Name, Email: u.Email, Role: u.Role, BusinessID: u.BusinessID.Hex(), BusinessName: b.Name,
+		Avatar: a.userAvatar(ctx, u.ID), BusinessLogo: b.Logo,
+	}
 }
 
 func (a *App) authResponse(w http.ResponseWriter, r *http.Request, status int, u User, message string) {
@@ -113,7 +124,8 @@ func pathID(w http.ResponseWriter, r *http.Request) (bson.ObjectID, bool) {
 // ============================================================================
 
 // POST /api/auth/signup  {name, businessName, email, password}
-// Creates a business plus its owner account and logs the owner in.
+// Creates a business plus its owner account (unverified) and emails a 6-digit
+// code. The owner is only logged in after confirming it via /auth/verify.
 func (a *App) signup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name         string `json:"name"`
@@ -144,20 +156,57 @@ func (a *App) signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	if n, _ := a.store.users.CountDocuments(ctx, bson.M{"email": email}); n > 0 {
-		sendError(w, http.StatusConflict, "An account with this email already exists")
+	if msg := a.emailProblem(ctx, email); msg != "" {
+		sendError(w, http.StatusBadRequest, msg)
 		return
 	}
-
 	hash, err := hashPassword(req.Password)
 	if err != nil {
 		serverError(w, "hash password", err)
 		return
 	}
 
+	var existing User
+	findErr := a.store.users.FindOne(ctx, bson.M{"email": email}).Decode(&existing)
+	if findErr != nil && !errors.Is(findErr, mongo.ErrNoDocuments) {
+		serverError(w, "find user", findErr)
+		return
+	}
+	if findErr == nil {
+		// A signup that was never verified can be restarted with new details.
+		// Verified accounts, and staff accounts, are never touched.
+		if !existing.Unverified || existing.Role != "owner" {
+			sendError(w, http.StatusConflict, "An account with this email already exists")
+			return
+		}
+		if !inCooldown(existing) { // a code is only sent (and so only checked) outside the cooldown
+			if msg := a.mailboxProblem(ctx, email); msg != "" {
+				sendError(w, http.StatusBadRequest, msg)
+				return
+			}
+		}
+		_, _ = a.store.users.UpdateByID(ctx, existing.ID, bson.M{"$set": bson.M{"name": req.Name, "passwordHash": hash}})
+		_, _ = a.store.businesses.UpdateByID(ctx, existing.BusinessID, bson.M{"$set": bson.M{"name": req.BusinessName}})
+		existing.Name = req.Name
+		if !inCooldown(existing) {
+			if err := a.sendCode(ctx, existing); err != nil {
+				log.Printf("ERROR send verification email to %s: %v", email, err)
+				sendError(w, http.StatusBadGateway, "We couldn't send the verification email. Please check the address and try again")
+				return
+			}
+		}
+		needsVerification(w, http.StatusAccepted, email, "We sent a 6-digit code to "+email)
+		return
+	}
+
+	if msg := a.mailboxProblem(ctx, email); msg != "" {
+		sendError(w, http.StatusBadRequest, msg)
+		return
+	}
+
 	now := time.Now().UTC()
 	business := Business{ID: bson.NewObjectID(), Name: req.BusinessName, OwnerID: bson.NewObjectID(), CreatedAt: now}
-	owner := User{ID: business.OwnerID, Name: req.Name, Email: email, PasswordHash: hash, Role: "owner", BusinessID: business.ID, CreatedAt: now}
+	owner := User{ID: business.OwnerID, Name: req.Name, Email: email, PasswordHash: hash, Role: "owner", BusinessID: business.ID, CreatedAt: now, Unverified: true}
 
 	if _, err := a.store.businesses.InsertOne(ctx, business); err != nil {
 		serverError(w, "insert business", err)
@@ -173,8 +222,17 @@ func (a *App) signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Signup: %s created business %q", email, business.Name)
-	a.authResponse(w, r, http.StatusCreated, owner, "Welcome to ProdTrack!")
+	if err := a.sendCode(ctx, owner); err != nil {
+		// Undo the signup so the person can try again with a correct address.
+		log.Printf("ERROR send verification email to %s: %v", email, err)
+		_, _ = a.store.users.DeleteOne(ctx, bson.M{"_id": owner.ID})
+		_, _ = a.store.businesses.DeleteOne(ctx, bson.M{"_id": business.ID})
+		sendError(w, http.StatusBadGateway, "We couldn't send the verification email. Please check the address and try again")
+		return
+	}
+
+	log.Printf("Signup: %s created business %q (waiting for email verification)", email, business.Name)
+	needsVerification(w, http.StatusAccepted, email, "We sent a 6-digit code to "+email)
 }
 
 // POST /api/auth/login  {email, password}
@@ -201,6 +259,18 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	}
 	if !checkPassword(user.PasswordHash, req.Password) {
 		sendError(w, http.StatusUnauthorized, "Incorrect email or password")
+		return
+	}
+	if user.Unverified {
+		// Only after the password is right, so this can't be used to spam inboxes.
+		if !inCooldown(user) {
+			if err := a.sendCode(r.Context(), user); err != nil {
+				log.Printf("ERROR send verification email to %s: %v", email, err)
+				sendError(w, http.StatusBadGateway, "We couldn't send the verification email. Please try again shortly")
+				return
+			}
+		}
+		needsVerification(w, http.StatusForbidden, email, "Please verify your email to continue. We sent a code to "+email)
 		return
 	}
 
@@ -236,9 +306,15 @@ func (a *App) updateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	set := bson.M{"name": req.Name, "email": email}
-	sensitive := email != user.Email || req.NewPassword != ""
-	if sensitive && !checkPassword(user.PasswordHash, req.CurrentPassword) {
+	// The login email was verified at signup, so it can't be swapped for an
+	// unverified one here.
+	if email != user.Email {
+		sendError(w, http.StatusBadRequest, "Your login email can't be changed")
+		return
+	}
+
+	set := bson.M{"name": req.Name}
+	if req.NewPassword != "" && !checkPassword(user.PasswordHash, req.CurrentPassword) {
 		sendError(w, http.StatusUnauthorized, "Current password is incorrect")
 		return
 	}
@@ -255,16 +331,11 @@ func (a *App) updateProfile(w http.ResponseWriter, r *http.Request) {
 		set["passwordHash"] = hash
 	}
 
-	_, err := a.store.users.UpdateByID(r.Context(), user.ID, bson.M{"$set": set})
-	if mongo.IsDuplicateKeyError(err) {
-		sendError(w, http.StatusConflict, "That email is already used by another account")
-		return
-	}
-	if err != nil {
+	if _, err := a.store.users.UpdateByID(r.Context(), user.ID, bson.M{"$set": set}); err != nil {
 		serverError(w, "update profile", err)
 		return
 	}
-	user.Name, user.Email = req.Name, email
+	user.Name = req.Name
 	sendJSON(w, http.StatusOK, map[string]any{"message": "Profile updated", "user": a.userView(r.Context(), user)})
 }
 
@@ -314,6 +385,17 @@ func (a *App) createStaff(w http.ResponseWriter, r *http.Request) {
 		sendError(w, http.StatusBadRequest, msg)
 		return
 	}
+	if msg := a.emailProblem(r.Context(), email); msg != "" {
+		sendError(w, http.StatusBadRequest, msg)
+		return
+	}
+	if n, _ := a.store.users.CountDocuments(r.Context(), bson.M{"email": email}); n == 0 {
+		// Only new addresses are checked, so existing accounts don't use up checks
+		if msg := a.mailboxProblem(r.Context(), email); msg != "" {
+			sendError(w, http.StatusBadRequest, msg)
+			return
+		}
+	}
 	hash, err := hashPassword(req.Password)
 	if err != nil {
 		serverError(w, "hash password", err)
@@ -323,6 +405,7 @@ func (a *App) createStaff(w http.ResponseWriter, r *http.Request) {
 	staff := User{
 		ID: bson.NewObjectID(), Name: req.Name, Email: email, PasswordHash: hash,
 		Role: "staff", BusinessID: owner.BusinessID, CreatedAt: time.Now().UTC(),
+		Unverified: true, // verifies their email with a code the first time they log in
 	}
 	if _, err := a.store.users.InsertOne(r.Context(), staff); err != nil {
 		if mongo.IsDuplicateKeyError(err) {
