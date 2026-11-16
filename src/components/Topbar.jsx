@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import Avatar from "./Avatar";
+import BusinessProfileModal from "./BusinessProfileModal";
 import Icon from "./Icon";
 import { useApp } from "../context/AppContext";
-import { initials } from "../lib/format";
+import Logo from "./Logo";
 import ThemeSwitch from "./ThemeSwitch";
 
 const TITLES = {
@@ -16,38 +18,28 @@ const TITLES = {
   "/dashboard/logbook": ["Log book", "Business"],
   "/dashboard/staff": ["Staff", "Business"],
   "/dashboard/profile": ["Profile", "Business"],
+  "/dashboard/password": ["Change password", "Business"],
 };
 
-export default function Topbar({ onToggleSidebar, onOpenMobile }) {
-  const { user, logout, refresh, loading } = useApp();
-  const location = useLocation();
-  const navigate = useNavigate();
+export default function Topbar({ onOpenMobile }) {
+  const { user, isOwner, refresh, loading } = useApp();
   const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
+  const location = useLocation();
 
   const path = location.pathname.replace(/\/$/, "");
   const [title, crumb] = TITLES[path] || (path.includes("/edit") ? ["Edit product", "Inventory"] : ["Dashboard", "Overview"]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e) => !menuRef.current?.contains(e.target) && setOpen(false);
-    const onKey = (e) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   return (
     <header className="topbar">
       <button className="icon-btn menu-btn-mobile" onClick={onOpenMobile} aria-label="Open menu">
         <Icon name="menu" />
       </button>
-      <button className="icon-btn menu-btn-desktop" onClick={onToggleSidebar} aria-label="Collapse sidebar">
-        <Icon name="sidebar" />
-      </button>
+      <Link to="/dashboard" className="topbar-brand" aria-label="ProdTrack home">
+        <span className="brand-mark">
+          <Logo />
+        </span>
+        <span className="brand-name">PRODTRACK</span>
+      </Link>
       <div>
         <div className="topbar-crumb">{crumb}</div>
         <div className="topbar-title">{title}</div>
@@ -59,37 +51,15 @@ export default function Topbar({ onToggleSidebar, onOpenMobile }) {
         </button>
         <ThemeSwitch />
 
-        <div className="user-menu" ref={menuRef}>
-          <button className="user-trigger" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu">
-            <span className="avatar gradient">{initials(user?.name)}</span>
-            <span className="who">
-              <strong>{user?.name}</strong>
-              <span>{user?.role}</span>
-            </span>
-          </button>
-          {open && (
-            <div className="dropdown" role="menu">
-              <div className="dropdown-head">
-                <strong>{user?.name}</strong>
-                <span>{user?.email}</span>
-              </div>
-              <Link to="/dashboard/profile" className="dropdown-item" role="menuitem" onClick={() => setOpen(false)}>
-                <Icon name="user" /> Profile & security
-              </Link>
-              <button
-                className="dropdown-item danger"
-                role="menuitem"
-                onClick={() => {
-                  logout();
-                  navigate("/login");
-                }}
-              >
-                <Icon name="logout" /> Log out
-              </button>
-            </div>
-          )}
-        </div>
+        <button type="button" className="topbar-business" onClick={() => setOpen(true)} aria-haspopup="dialog" title="Business profile">
+          <Avatar className="gradient" src={user?.businessLogo} name={user?.businessName} />
+          <span className="who">
+            <strong>{user?.businessName}</strong>
+            <span>{isOwner ? "Owner workspace" : "Staff workspace"}</span>
+          </span>
+        </button>
       </div>
+      {open && <BusinessProfileModal onClose={() => setOpen(false)} />}
     </header>
   );
 }
