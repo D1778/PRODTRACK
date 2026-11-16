@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -170,6 +173,217 @@ func expect(t *testing.T, what string, got, want int, body map[string]any) {
 	}
 }
 
+// testDomainCheck stands in for DNS so tests don't need a network. Only
+// "nodomain.invalid" counts as a domain without a mail server.
+func testDomainCheck(_ context.Context, domain string) bool { return domain != "nodomain.invalid" }
+
+func TestEmailProblem(t *testing.T) {
+	ok := []string{"asha@example.com", "dinudevees@gmail.com", "krkunal404@gmail.com", "first.last@gmail.com", "someone+shop@gmail.com", "abcdef@gmail.com", "a.very.long.name.here@gmail.com"}
+	for _, e := range ok {
+		if msg := emailProblem(context.Background(), e, testDomainCheck); msg != "" {
+			t.Errorf("%s should be accepted, got: %s", e, msg)
+		}
+	}
+	bad := []string{
+		"a@gmail.com", "test@gmail.com", "abcde@gmail.com", // Gmail names need 6+ characters
+		"ab..cd12@gmail.com", ".abcdef@gmail.com", "abcdef.@gmail.com", "abc_def1@gmail.com", // dots/underscores misuse
+		"averyveryverylongusername1234567@gmail.com", // over 30 characters
+		"someone@mailinator.com", "x@yopmail.com", // disposable
+		"person@nodomain.invalid", // no mail server
+	}
+	for _, e := range bad {
+		if msg := emailProblem(context.Background(), e, testDomainCheck); msg == "" {
+			t.Errorf("%s should be rejected", e)
+		}
+	}
+}
+
+// fakeChecker stands in for the mailbox-verification service.
+type fakeChecker struct{}
+
+func (fakeChecker) Check(_ context.Context, email string) (MailboxResult, error) {
+	switch email {
+	case "ghost@example.com":
+		return MailboxInvalid, nil
+	case "maybe@example.com":
+		return MailboxUnknown, nil
+	case "broken@example.com":
+		return MailboxUnknown, fmt.Errorf("service down")
+	}
+	return MailboxValid, nil
+}
+
+func TestZeroBounceParsing(t *testing.T) {
+	answers := map[string]string{
+		"valid@x.com":    `{"status":"valid"}`,
+		"gone@x.com":     `{"status":"invalid","sub_status":"mailbox_not_found"}`,
+		"temp@x.com":     `{"status":"do_not_mail","sub_status":"disposable"}`,
+		"trap@x.com":     `{"status":"spamtrap"}`,
+		"catchall@x.com": `{"status":"catch-all"}`,
+		"unknown@x.com":  `{"status":"unknown"}`,
+		"nocredit@x.com": `{"error":"Invalid API key or your account ran out of credits"}`,
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/validate" || r.URL.Query().Get("api_key") != "k" {
+			t.Errorf("unexpected request %s", r.URL)
+		}
+		fmt.Fprint(w, answers[r.URL.Query().Get("email")])
+	}))
+	defer srv.Close()
+	zb := zeroBounce{apiKey: "k", baseURL: srv.URL, client: srv.Client()}
+
+	want := map[string]MailboxResult{
+		"valid@x.com": MailboxValid, "gone@x.com": MailboxInvalid, "temp@x.com": MailboxInvalid, "trap@x.com": MailboxInvalid,
+		"catchall@x.com": MailboxUnknown, "unknown@x.com": MailboxUnknown,
+	}
+	for email, expected := range want {
+		got, err := zb.Check(context.Background(), email)
+		if err != nil || got != expected {
+			t.Errorf("%s: got %v (err %v), want %v", email, got, err, expected)
+		}
+	}
+	if _, err := zb.Check(context.Background(), "nocredit@x.com"); err == nil {
+		t.Error("an error response (bad key / no credits) should be reported as an error so signup can fail open")
+	}
+}
+
+// fakeMailServer is a tiny SMTP server that answers like a real one:
+// "550 5.1.1" for recipients starting with "ghost", a policy block for "blocked",
+// a temporary error for "later", and OK for everyone else. It never accepts mail (no DATA).
+func fakeMailServer(t *testing.T) (port string, stop func()) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				tp := textproto.NewConn(c)
+				tp.PrintfLine("220 fake.test ESMTP")
+				for {
+					line, err := tp.ReadLine()
+					if err != nil {
+						return
+					}
+					up := strings.ToUpper(line)
+					switch {
+					case strings.HasPrefix(up, "EHLO"), strings.HasPrefix(up, "HELO"):
+						tp.PrintfLine("250 fake.test")
+					case strings.HasPrefix(up, "MAIL"):
+						tp.PrintfLine("250 2.1.0 OK")
+					case strings.HasPrefix(up, "RCPT"):
+						switch {
+						case strings.Contains(up, "<GHOST"):
+							tp.PrintfLine("550-5.1.1 The email account that you tried to reach does not exist.")
+							tp.PrintfLine("550 5.1.1 Please try double-checking the recipient's address.")
+						case strings.Contains(up, "<BLOCKED"):
+							tp.PrintfLine("550 5.7.1 Message rejected due to spam policy for your IP")
+						case strings.Contains(up, "<LATER"):
+							tp.PrintfLine("451 4.7.1 Greylisted, try again later")
+						default:
+							tp.PrintfLine("250 2.1.5 OK")
+						}
+					case strings.HasPrefix(up, "QUIT"):
+						tp.PrintfLine("221 bye")
+						return
+					default:
+						tp.PrintfLine("250 OK")
+					}
+				}
+			}(conn)
+		}
+	}()
+	_, port, _ = net.SplitHostPort(ln.Addr().String())
+	return port, func() { ln.Close() }
+}
+
+func TestSMTPProbe(t *testing.T) {
+	port, stop := fakeMailServer(t)
+	defer stop()
+	probe := smtpProbe{
+		from: "sender@example.com", port: port,
+		mxHosts: func(context.Context, string) ([]string, error) { return []string{"127.0.0.1"}, nil },
+	}
+	want := map[string]MailboxResult{
+		"alice@example.com":   MailboxValid,
+		"ghost1@example.com":  MailboxInvalid, // "550 5.1.1 account does not exist"
+		"blocked@example.com": MailboxUnknown, // 550 but a policy block says nothing about the mailbox
+		"later@example.com":   MailboxUnknown, // temporary error / greylisting
+	}
+	for email, expected := range want {
+		got, err := probe.Check(context.Background(), email)
+		if err != nil || got != expected {
+			t.Errorf("%s: got %v (err %v), want %v", email, got, err, expected)
+		}
+	}
+
+	// A port nobody listens on (blocked, like Render's free plan) is an error, so signup fails open
+	stop()
+	if _, err := probe.Check(context.Background(), "alice@example.com"); err == nil {
+		t.Error("an unreachable mail server should be reported as an error")
+	}
+}
+
+// captureMailer records the verification code "sent" to each address.
+type captureMailer struct {
+	mu    sync.Mutex
+	codes map[string]string
+	sent  map[string]int // how many emails each address received
+}
+
+var sixDigits = regexp.MustCompile(`\b\d{6}\b`)
+
+func (m *captureMailer) Send(_ context.Context, to, _, text, _ string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.codes == nil {
+		m.codes = map[string]string{}
+		m.sent = map[string]int{}
+	}
+	m.codes[to] = sixDigits.FindString(text)
+	m.sent[to]++
+	return nil
+}
+
+func (m *captureMailer) count(to string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.sent[to]
+}
+
+func (m *captureMailer) code(to string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.codes[to]
+}
+
+// signupVerified creates an account and confirms its email, leaving the client logged in.
+func (c *apiClient) signupVerified(m *captureMailer, name, business, email, password string) {
+	c.t.Helper()
+	status, body, _ := c.do("POST", "/auth/signup", map[string]string{"name": name, "businessName": business, "email": email, "password": password})
+	expect(c.t, "signup", status, 202, body)
+	status, body, _ = c.do("POST", "/auth/verify", map[string]string{"email": email, "code": m.code(email)})
+	expect(c.t, "verify email", status, 200, body)
+	c.token = body["token"].(string)
+}
+
+// loginVerified logs in an unverified account (a new staff member): the first
+// login is refused until the emailed code is entered.
+func (c *apiClient) loginVerified(m *captureMailer, email, password string) {
+	c.t.Helper()
+	status, body, _ := c.do("POST", "/auth/login", map[string]string{"email": email, "password": password})
+	expect(c.t, "login before verifying", status, 403, body)
+	status, body, _ = c.do("POST", "/auth/verify", map[string]string{"email": email, "code": m.code(email)})
+	expect(c.t, "verify email", status, 200, body)
+	c.token = body["token"].(string)
+}
+
 func TestAPIEndToEnd(t *testing.T) {
 	uri := os.Getenv("MONGODB_TEST_URI")
 	if uri == "" {
@@ -183,17 +397,69 @@ func TestAPIEndToEnd(t *testing.T) {
 	}
 	defer func() { store.db.Drop(ctx); store.Close() }()
 
-	app := &App{store: store, tokens: TokenService{secret: []byte("e2e-secret-e2e-secret-e2e-secret!"), ttl: time.Hour}}
+	mails := &captureMailer{}
+	app := &App{store: store, tokens: TokenService{secret: []byte("e2e-secret-e2e-secret-e2e-secret!"), ttl: time.Hour}, mailer: mails, domainCheck: testDomainCheck, checker: fakeChecker{}}
 	srv := httptest.NewServer(newRouter(app, t.TempDir()))
 	defer srv.Close()
 
+	// A mailbox that doesn't exist is refused before anything is created or emailed;
+	// "can't tell" and a failing checking service don't block the signup.
+	ghost := &apiClient{t: t, base: srv.URL}
+	status, body, _ := ghost.do("POST", "/auth/signup", map[string]string{"name": "Ghost", "businessName": "Ghost Co", "email": "ghost@example.com", "password": "supersecret"})
+	expect(t, "nonexistent mailbox", status, 400, body)
+	if mails.code("ghost@example.com") != "" {
+		t.Error("a code was emailed to a mailbox that doesn't exist")
+	}
+	if n, _ := store.users.CountDocuments(ctx, bson.M{"email": "ghost@example.com"}); n != 0 {
+		t.Error("an account was created for a mailbox that doesn't exist")
+	}
+	for _, e := range []string{"maybe@example.com", "broken@example.com"} {
+		status, body, _ = ghost.do("POST", "/auth/signup", map[string]string{"name": "Maybe", "businessName": "Maybe Co", "email": e, "password": "supersecret"})
+		expect(t, "unknown mailbox "+e, status, 202, body)
+	}
+
+	// Fake-looking addresses are refused before any code is emailed
+	fakeClient := &apiClient{t: t, base: srv.URL}
+	for _, fake := range []string{"a@gmail.com", "x@mailinator.com", "person@nodomain.invalid"} {
+		status, body, _ := fakeClient.do("POST", "/auth/signup", map[string]string{"name": "Fake", "businessName": "Fake Co", "email": fake, "password": "supersecret"})
+		expect(t, "fake email "+fake, status, 400, body)
+		if mails.code(fake) != "" {
+			t.Errorf("a code was emailed to the fake address %s", fake)
+		}
+	}
+
+	// Signup only creates an unverified account: no token until the emailed code is entered.
 	owner := &apiClient{t: t, base: srv.URL}
-	status, body, _ := owner.do("POST", "/auth/signup", map[string]string{"name": "Asha", "businessName": "Asha Stores", "email": "Asha@Example.com", "password": "supersecret"})
-	expect(t, "signup", status, 201, body)
+	status, body, _ = owner.do("POST", "/auth/signup", map[string]string{"name": "Asha", "businessName": "Asha Stores", "email": "Asha@Example.com", "password": "supersecret"})
+	expect(t, "signup", status, 202, body)
+	if body["needsVerification"] != true || body["token"] != nil {
+		t.Errorf("signup must require verification and issue no token: %v", body)
+	}
+	code := mails.code("asha@example.com")
+	if len(code) != 6 {
+		t.Fatalf("no 6-digit code was emailed (got %q)", code)
+	}
+	status, body, _ = owner.do("POST", "/auth/login", map[string]string{"email": "asha@example.com", "password": "supersecret"})
+	expect(t, "login before verifying", status, 403, body)
+	if body["needsVerification"] != true || body["token"] != nil {
+		t.Errorf("unverified login must be refused without a token: %v", body)
+	}
+	wrong := "000000"
+	if code == wrong {
+		wrong = "111111"
+	}
+	status, body, _ = owner.do("POST", "/auth/verify", map[string]string{"email": "asha@example.com", "code": wrong})
+	expect(t, "wrong code", status, 400, body)
+	status, body, _ = owner.do("POST", "/auth/verify", map[string]string{"email": "asha@example.com", "code": code})
+	expect(t, "verify email", status, 200, body)
 	owner.token = body["token"].(string)
 	if body["user"].(map[string]any)["businessName"] != "Asha Stores" {
-		t.Errorf("signup user missing business: %v", body)
+		t.Errorf("verify response missing business: %v", body)
 	}
+	status, body, _ = owner.do("POST", "/auth/verify", map[string]string{"email": "asha@example.com", "code": code})
+	expect(t, "code can't be reused", status, 400, body)
+	status, body, _ = owner.do("POST", "/auth/login", map[string]string{"email": "asha@example.com", "password": "supersecret"})
+	expect(t, "login after verifying", status, 200, body)
 
 	status, body, _ = owner.do("POST", "/auth/signup", map[string]string{"name": "X", "businessName": "Y", "email": "asha@example.com", "password": "supersecret"})
 	expect(t, "duplicate signup", status, 409, body)
@@ -235,13 +501,13 @@ func TestAPIEndToEnd(t *testing.T) {
 	expect(t, "stock out too many", status, 409, body)
 
 	// Staff
+	status, body, _ = owner.do("POST", "/staff", map[string]string{"name": "Ghost", "email": "ghost@example.com", "password": "staffpass1"})
+	expect(t, "staff with a nonexistent mailbox", status, 400, body)
 	status, body, _ = owner.do("POST", "/staff", map[string]string{"name": "Ravi", "email": "ravi@example.com", "password": "staffpass1"})
 	expect(t, "add staff", status, 201, body)
 	staffID := body["id"].(string)
 	staff := &apiClient{t: t, base: srv.URL}
-	status, body, _ = staff.do("POST", "/auth/login", map[string]string{"email": "ravi@example.com", "password": "staffpass1"})
-	expect(t, "staff login", status, 200, body)
-	staff.token = body["token"].(string)
+	staff.loginVerified(mails, "ravi@example.com", "staffpass1")
 	status, body, _ = staff.do("GET", "/staff", nil)
 	expect(t, "staff cannot list staff", status, 403, body)
 	status, body, _ = staff.do("GET", "/analytics", nil)
@@ -281,12 +547,14 @@ func TestAPIEndToEnd(t *testing.T) {
 		t.Errorf("expected 6 history entries, got %d", len(history))
 	}
 
-	// Profile: email change needs current password
+	// Profile: the verified login email can't be swapped; a password change needs the current password
 	status, body, _ = owner.do("PUT", "/auth/profile", map[string]string{"name": "Asha K", "email": "asha.k@example.com"})
-	expect(t, "profile without password", status, 401, body)
-	status, body, _ = owner.do("PUT", "/auth/profile", map[string]string{"name": "Asha K", "email": "asha.k@example.com", "currentPassword": "supersecret", "newPassword": "newsecret1"})
+	expect(t, "email change refused", status, 400, body)
+	status, body, _ = owner.do("PUT", "/auth/profile", map[string]string{"name": "Asha K", "email": "asha@example.com", "newPassword": "newsecret1"})
+	expect(t, "password change without current password", status, 401, body)
+	status, body, _ = owner.do("PUT", "/auth/profile", map[string]string{"name": "Asha K", "email": "asha@example.com", "currentPassword": "supersecret", "newPassword": "newsecret1"})
 	expect(t, "profile update", status, 200, body)
-	status, body, _ = anon.do("POST", "/auth/login", map[string]string{"email": "asha.k@example.com", "password": "newsecret1"})
+	status, body, _ = anon.do("POST", "/auth/login", map[string]string{"email": "asha@example.com", "password": "newsecret1"})
 	expect(t, "login with new credentials", status, 200, body)
 
 	// Removed staff lose access immediately
@@ -297,8 +565,7 @@ func TestAPIEndToEnd(t *testing.T) {
 
 	// Another business can't see or touch this one's data
 	other := &apiClient{t: t, base: srv.URL}
-	_, body, _ = other.do("POST", "/auth/signup", map[string]string{"name": "Bo", "businessName": "Bo Mart", "email": "bo@example.com", "password": "bopassword"})
-	other.token = body["token"].(string)
+	other.signupVerified(mails, "Bo", "Bo Mart", "bo@example.com", "bopassword")
 	_, _, otherProducts := other.do("GET", "/products", nil)
 	if len(otherProducts) != 0 {
 		t.Errorf("tenant isolation broken: %v", otherProducts)
@@ -308,13 +575,139 @@ func TestAPIEndToEnd(t *testing.T) {
 
 	status, body, _ = owner.do("DELETE", "/products/"+bookID, nil)
 	expect(t, "delete product", status, 200, body)
+
+	// Pictures: everyone can set their own; only owners can set the business logo
+	const tinyPNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+	status, body, _ = other.do("POST", "/staff", map[string]string{"name": "Mia", "email": "mia@example.com", "password": "staffpass1"})
+	expect(t, "add staff for pictures", status, 201, body)
+	mia := &apiClient{t: t, base: srv.URL}
+	mia.loginVerified(mails, "mia@example.com", "staffpass1")
+	status, body, _ = mia.do("PUT", "/auth/avatar", map[string]string{"image": tinyPNG})
+	expect(t, "staff sets own avatar", status, 200, body)
+	if body["user"].(map[string]any)["avatar"] != tinyPNG {
+		t.Errorf("avatar not returned: %v", body)
+	}
+	status, body, _ = mia.do("PUT", "/business", map[string]string{"name": "Hacked", "logo": tinyPNG})
+	expect(t, "staff cannot edit the business", status, 403, body)
+	status, body, _ = other.do("PUT", "/business", map[string]string{"name": "Bo Mart", "logo": tinyPNG})
+	expect(t, "owner sets business logo", status, 200, body)
+	status, body, _ = other.do("PUT", "/business", map[string]string{"name": "   "})
+	expect(t, "empty business name", status, 400, body)
+	status, body, _ = other.do("PUT", "/business", map[string]string{"name": "Bo Mart & Co"})
+	expect(t, "rename keeps the logo", status, 200, body)
+	if u := body["user"].(map[string]any); u["businessName"] != "Bo Mart & Co" || u["businessLogo"] != tinyPNG {
+		t.Errorf("rename should keep the logo: %v", u)
+	}
+	status, body, _ = other.do("PUT", "/auth/avatar", map[string]string{"image": tinyPNG})
+	expect(t, "owner sets own avatar", status, 200, body)
+	status, body, _ = mia.do("GET", "/auth/me", nil)
+	expect(t, "me", status, 200, body)
+	if u := body["user"].(map[string]any); u["avatar"] != tinyPNG || u["businessLogo"] != tinyPNG || u["businessName"] != "Bo Mart & Co" {
+		t.Errorf("staff should see own avatar, the business logo and the new business name: %v", u)
+	}
+	for _, bad := range []string{"data:text/html;base64,PGI+", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,AAAA", "not an image", "data:image/png;base64,!!!"} {
+		status, body, _ = mia.do("PUT", "/auth/avatar", map[string]string{"image": bad})
+		expect(t, "reject "+bad, status, 400, body)
+	}
+	status, body, _ = mia.do("PUT", "/auth/avatar", map[string]string{"image": ""})
+	expect(t, "remove avatar", status, 200, body)
+	if body["user"].(map[string]any)["avatar"] != "" {
+		t.Errorf("avatar not removed: %v", body)
+	}
+
+	// Verification limits: 5 wrong guesses lock the code; a resend (after the
+	// cooldown) issues a fresh one.
+	late := &apiClient{t: t, base: srv.URL}
+	status, body, _ = late.do("POST", "/auth/signup", map[string]string{"name": "Cy", "businessName": "Cy Co", "email": "cy@example.com", "password": "cypassword"})
+	expect(t, "signup cy", status, 202, body)
+	cyCode := mails.code("cy@example.com")
+	bad := "000000"
+	if cyCode == bad {
+		bad = "111111"
+	}
+	for i := 0; i < maxCodeAttempts; i++ {
+		late.do("POST", "/auth/verify", map[string]string{"email": "cy@example.com", "code": bad})
+	}
+	status, body, _ = late.do("POST", "/auth/verify", map[string]string{"email": "cy@example.com", "code": cyCode})
+	expect(t, "locked after too many attempts", status, 429, body)
+	status, body, _ = late.do("POST", "/auth/resend", map[string]string{"email": "cy@example.com"})
+	expect(t, "resend during cooldown", status, 429, body)
+	_, err = store.users.UpdateOne(ctx, bson.M{"email": "cy@example.com"}, bson.M{"$set": bson.M{"verifySentAt": time.Now().Add(-2 * time.Minute)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, body, _ = late.do("POST", "/auth/resend", map[string]string{"email": "cy@example.com"})
+	expect(t, "resend after cooldown", status, 200, body)
+	status, body, _ = late.do("POST", "/auth/verify", map[string]string{"email": "cy@example.com", "code": mails.code("cy@example.com")})
+	expect(t, "verify with fresh code", status, 200, body)
+
+	// Forgot password: the answer never reveals whether an email is registered, and
+	// only verified accounts are sent a code.
+	stranger := &apiClient{t: t, base: srv.URL}
+	status, body, _ = stranger.do("POST", "/auth/forgot", map[string]string{"email": "nobody@example.com"})
+	expect(t, "forgot for an unknown email", status, 200, body)
+	if mails.count("nobody@example.com") != 0 {
+		t.Error("a reset email was sent to an address with no account")
+	}
+	status, body, _ = stranger.do("POST", "/auth/signup", map[string]string{"name": "Dee", "businessName": "Dee Co", "email": "dee@example.com", "password": "deepassword"})
+	expect(t, "signup dee (left unverified)", status, 202, body)
+	before := mails.count("dee@example.com")
+	status, body, _ = stranger.do("POST", "/auth/forgot", map[string]string{"email": "dee@example.com"})
+	expect(t, "forgot for an unverified account", status, 200, body)
+	if mails.count("dee@example.com") != before {
+		t.Error("an unverified account must verify its email first, not receive a reset code")
+	}
+
+	// A verified account (Bo) resets its password with the emailed code
+	status, body, _ = stranger.do("POST", "/auth/forgot", map[string]string{"email": "bo@example.com"})
+	expect(t, "forgot for a verified account", status, 200, body)
+	resetCode := mails.code("bo@example.com")
+	if len(resetCode) != 6 {
+		t.Fatalf("no 6-digit reset code was emailed (got %q)", resetCode)
+	}
+	wrongReset := "000000"
+	if resetCode == wrongReset {
+		wrongReset = "111111"
+	}
+	status, body, _ = stranger.do("POST", "/auth/reset", map[string]string{"email": "bo@example.com", "code": wrongReset, "newPassword": "brandnewpass1"})
+	expect(t, "reset with a wrong code", status, 400, body)
+	status, body, _ = stranger.do("POST", "/auth/reset", map[string]string{"email": "bo@example.com", "code": resetCode, "newPassword": "short"})
+	expect(t, "reset with a weak password", status, 400, body)
+	status, body, _ = stranger.do("POST", "/auth/reset", map[string]string{"email": "bo@example.com", "code": resetCode, "newPassword": "brandnewpass1"})
+	expect(t, "reset with the right code", status, 200, body)
+	status, body, _ = stranger.do("POST", "/auth/reset", map[string]string{"email": "bo@example.com", "code": resetCode, "newPassword": "anotherpass22"})
+	expect(t, "a reset code can't be reused", status, 400, body)
+	status, body, _ = stranger.do("POST", "/auth/login", map[string]string{"email": "bo@example.com", "password": "bopassword"})
+	expect(t, "old password no longer works", status, 401, body)
+	status, body, _ = stranger.do("POST", "/auth/login", map[string]string{"email": "bo@example.com", "password": "brandnewpass1"})
+	expect(t, "new password works", status, 200, body)
+	status, body, _ = other.do("GET", "/auth/me", nil)
+	expect(t, "logins from before the reset are signed out", status, 401, body)
+
+	// Wrong guesses lock the reset code
+	time.Sleep(1100 * time.Millisecond) // the cooldown test below needs a distinct second from the reset
+	_, err = store.users.UpdateOne(ctx, bson.M{"email": "bo@example.com"}, bson.M{"$unset": bson.M{"resetSentAt": ""}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stranger.do("POST", "/auth/forgot", map[string]string{"email": "bo@example.com"})
+	lockCode := mails.code("bo@example.com")
+	badGuess := "000000"
+	if lockCode == badGuess {
+		badGuess = "111111"
+	}
+	for i := 0; i < maxCodeAttempts; i++ {
+		stranger.do("POST", "/auth/reset", map[string]string{"email": "bo@example.com", "code": badGuess, "newPassword": "brandnewpass1"})
+	}
+	status, body, _ = stranger.do("POST", "/auth/reset", map[string]string{"email": "bo@example.com", "code": lockCode, "newPassword": "brandnewpass1"})
+	expect(t, "reset locked after too many attempts", status, 429, body)
 }
 
 // ---------------------------------------------------------------------------
 // Concurrency: many people changing the same product at the same moment.
 // ---------------------------------------------------------------------------
 
-func newTestServer(t *testing.T) (*Store, string, func()) {
+func newTestServer(t *testing.T) (*Store, string, *captureMailer, func()) {
 	uri := os.Getenv("MONGODB_TEST_URI")
 	if uri == "" {
 		t.Skip("set MONGODB_TEST_URI to run MongoDB tests")
@@ -324,26 +717,25 @@ func newTestServer(t *testing.T) (*Store, string, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := &App{store: store, tokens: TokenService{secret: []byte("e2e-secret-e2e-secret-e2e-secret!"), ttl: time.Hour}}
+	mails := &captureMailer{}
+	app := &App{store: store, tokens: TokenService{secret: []byte("e2e-secret-e2e-secret-e2e-secret!"), ttl: time.Hour}, mailer: mails, domainCheck: testDomainCheck}
 	srv := httptest.NewServer(newRouter(app, t.TempDir()))
-	return store, srv.URL, func() { srv.Close(); store.db.Drop(ctx); store.Close() }
+	return store, srv.URL, mails, func() { srv.Close(); store.db.Drop(ctx); store.Close() }
 }
 
 func TestConcurrentUpdates(t *testing.T) {
-	store, base, done := newTestServer(t)
+	store, base, mails, done := newTestServer(t)
 	defer done()
 	t.Logf("transactions enabled: %v", store.txn)
 
 	owner := &apiClient{t: t, base: base}
-	_, body, _ := owner.do("POST", "/auth/signup", map[string]string{"name": "Owner", "businessName": "Race Shop", "email": "race@example.com", "password": "racepassword"})
-	owner.token = body["token"].(string)
+	owner.signupVerified(mails, "Owner", "Race Shop", "race@example.com", "racepassword")
 	staff := []*apiClient{owner}
 	for i := 0; i < 3; i++ {
 		email := fmt.Sprintf("staff%d@example.com", i)
 		owner.do("POST", "/staff", map[string]string{"name": fmt.Sprintf("Staff %d", i), "email": email, "password": "staffpass1"})
 		c := &apiClient{t: t, base: base}
-		_, b, _ := c.do("POST", "/auth/login", map[string]string{"email": email, "password": "staffpass1"})
-		c.token = b["token"].(string)
+		c.loginVerified(mails, email, "staffpass1")
 		staff = append(staff, c)
 	}
 	newProduct := func(name string, stock int) (string, float64) {
