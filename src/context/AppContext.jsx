@@ -107,11 +107,29 @@ export function AppProvider({ children }) {
     return {
       refresh,
       login: async (email, password) => startSession(await api("/auth/login", { method: "POST", body: { email, password } })),
-      signup: async (form) => startSession(await api("/auth/signup", { method: "POST", body: form })),
+      // Signup does not log in: it emails a code, confirmed with verifyEmail().
+      signup: (form) => api("/auth/signup", { method: "POST", body: form }),
+      verifyEmail: async (email, code) => startSession(await api("/auth/verify", { method: "POST", body: { email, code } })),
+      resendCode: (email) => api("/auth/resend", { method: "POST", body: { email } }),
+      // Forgot password: email a code, then set a new password with it
+      forgotPassword: (email) => api("/auth/forgot", { method: "POST", body: { email } }),
+      resetPassword: (email, code, newPassword) => api("/auth/reset", { method: "POST", body: { email, code, newPassword } }),
       logout,
 
       updateProfile: async (form) => {
         const res = await api("/auth/profile", { method: "PUT", body: form });
+        setUser(res.user);
+        return res;
+      },
+      // image: a data URL, or "" to remove the picture
+      updateAvatar: async (image) => {
+        const res = await api("/auth/avatar", { method: "PUT", body: { image } });
+        setUser(res.user);
+        return res;
+      },
+      // owner only. logo: a data URL, "" to remove it, or undefined to keep it
+      updateBusiness: async ({ name, logo }) => {
+        const res = await api("/business", { method: "PUT", body: { name, logo } });
         setUser(res.user);
         return res;
       },
