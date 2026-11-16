@@ -25,6 +25,7 @@ dist-ssr
 
 # Go backend build output
 backend/*.exe
+backend/*.exe~
 backend/prodtrack-backend
 backend/test_data.json
 
