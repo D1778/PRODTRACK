@@ -49,13 +49,13 @@ export default function ChangePassword() {
   };
 
   return (
-    <>
+    <div className="center-page">
       <PageHeader title="Change password" subtitle="Choose a new password for your account." />
 
-      <div className="card mb" style={{ maxWidth: 520 }}>
+      <div className="card mb">
         <div className="card-body">
-          <Link to="/dashboard/profile" className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13.5 }}>
-            <Icon name="arrowLeft" /> Back to profile
+          <Link to="/dashboard/profile" className="back-link">
+            <Icon name="arrowLeft" size={16} /> Back to profile
           </Link>
 
           {error && <div className="alert alert-error" role="alert"><Icon name="alertCircle" /> {error}</div>}
@@ -65,7 +65,7 @@ export default function ChangePassword() {
               <div className="field">
                 <label className="label" htmlFor="cp-cur">Current password</label>
                 <PasswordInput id="cp-cur" value={form.current} onChange={set("current")} autoComplete="current-password" autoFocus />
-                <button type="button" onClick={() => { setError(""); setMode("forgot"); }} style={{ background: "none", border: 0, padding: 0, marginTop: 6, color: "var(--primary-text, #4f46e5)", font: "inherit", fontSize: 13.5, textDecoration: "underline", cursor: "pointer" }}>
+                <button type="button" onClick={() => { setError(""); setMode("forgot"); }} style={{ alignSelf: "flex-start", textAlign: "left", background: "none", border: 0, padding: 0, marginTop: 8, color: "var(--primary-text, #4f46e5)", font: "inherit", fontSize: 13.5, textDecoration: "underline", cursor: "pointer" }}>
                   Forgot your current password?
                 </button>
               </div>
@@ -120,6 +120,6 @@ export default function ChangePassword() {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
