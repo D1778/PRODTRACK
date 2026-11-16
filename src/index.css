@@ -423,7 +423,6 @@ mark { background: color-mix(in srgb, var(--warning) 28%, transparent); color: i
   border-bottom: 1px solid var(--border);
 }
 .topbar-title { font-size: 17px; font-weight: 700; }
-.topbar-crumb { font-size: 12.5px; color: var(--text-3); }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .menu-btn-mobile { display: none; }
 /* Account card at the bottom of the sidebar, and the menu it opens upwards */
@@ -814,7 +813,6 @@ mark { background: color-mix(in srgb, var(--warning) 28%, transparent); color: i
   .topbar-business { padding: 4px; margin-left: 0; }
   .topbar-brand { margin-right: 0; padding-right: 0; border-right: 0; }
   .topbar-brand .brand-name { display: none; }
-  .topbar-crumb { font-size: 11.5px; line-height: 1.2; white-space: nowrap; }
   .topbar-title { font-size: 16px; white-space: nowrap; }
   .l-links { display: none; }
   .preview-inner { grid-template-columns: 1fr; }
