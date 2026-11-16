@@ -6,24 +6,26 @@ import Topbar from "../components/Topbar";
 const KEY = "prodtrack.sidebar";
 
 export default function Dashboard() {
-  const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem(KEY) === "collapsed"; } catch { return false; }
+  // Floating by default: a slim rail that expands over the page on hover.
+  // Pinned: stays open and the page makes room for it.
+  const [pinned, setPinned] = useState(() => {
+    try { return localStorage.getItem(KEY) === "pinned"; } catch { return false; }
   });
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
-  const toggle = () =>
-    setCollapsed((c) => {
-      try { localStorage.setItem(KEY, c ? "open" : "collapsed"); } catch { /* storage unavailable */ }
-      return !c;
+  const togglePinned = () =>
+    setPinned((p) => {
+      try { localStorage.setItem(KEY, p ? "floating" : "pinned"); } catch { /* storage unavailable */ }
+      return !p;
     });
 
   return (
-    <div className={`app ${collapsed ? "collapsed" : ""} ${mobileOpen ? "mobile-open" : ""}`}>
-      <Sidebar onNavigate={() => setMobileOpen(false)} />
+    <div className={`app ${pinned ? "pinned" : "floating"} ${mobileOpen ? "mobile-open" : ""}`}>
+      <Sidebar pinned={pinned} onTogglePinned={togglePinned} onNavigate={() => setMobileOpen(false)} />
       {mobileOpen && <div className="backdrop" onClick={() => setMobileOpen(false)} />}
       <div className="main">
-        <Topbar onToggleSidebar={toggle} onOpenMobile={() => setMobileOpen(true)} />
+        <Topbar onOpenMobile={() => setMobileOpen(true)} />
         <main className="content" key={location.pathname}>
           <Outlet />
         </main>
