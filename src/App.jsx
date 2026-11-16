@@ -5,6 +5,7 @@ import ProtectedRoute, { GuestRoute } from "./components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Verify from "./pages/Verify";
 import Dashboard from "./pages/Dashboard";
 import DashboardHome from "./pages/DashboardHome";
 import Products from "./pages/Products";
@@ -13,6 +14,8 @@ import Stock from "./pages/Stock";
 import History from "./pages/History";
 import Alerts from "./pages/Alerts";
 import Profile from "./pages/Profile";
+import ChangePassword from "./pages/ChangePassword";
+import ForgotPassword from "./pages/ForgotPassword";
 import Billing from "./pages/Billing";
 import StaffManagement from "./pages/StaffManagement";
 import NotFound from "./pages/NotFound";
@@ -27,6 +30,8 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
             <Route path="/signup" element={<GuestRoute><Signup /></GuestRoute>} />
+            <Route path="/verify" element={<GuestRoute><Verify /></GuestRoute>} />
+            <Route path="/forgot-password" element={<GuestRoute><ForgotPassword /></GuestRoute>} />
 
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>}>
               <Route index element={<DashboardHome />} />
@@ -38,6 +43,7 @@ export default function App() {
               <Route path="history" element={<History />} />
               <Route path="alerts" element={<Alerts />} />
               <Route path="profile" element={<Profile />} />
+              <Route path="password" element={<ChangePassword />} />
               <Route path="staff" element={<ProtectedRoute roles={["owner"]}><StaffManagement /></ProtectedRoute>} />
               <Route path="logbook" element={<ProtectedRoute roles={["owner"]}><Logbook /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
