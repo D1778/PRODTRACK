@@ -20,6 +20,16 @@ type Config struct {
 	JWTSecret []byte
 	JWTTTL    time.Duration
 	StaticDir string
+
+	// Email (verification codes). Leave BrevoAPIKey empty to print codes in the
+	// console instead of sending them (local development).
+	BrevoAPIKey  string
+	MailFrom     string
+	MailFromName string
+
+	// ZeroBounceKey enables checking that an email's mailbox really exists
+	// before a code is sent. Empty = no check.
+	ZeroBounceKey string
 }
 
 func loadConfig() Config {
@@ -31,6 +41,12 @@ func loadConfig() Config {
 		MongoDB:   getenv("MONGODB_DB", "prodtrack"),
 		StaticDir: getenv("STATIC_DIR", filepath.Join("..", "dist")),
 		JWTTTL:    7 * 24 * time.Hour,
+
+		BrevoAPIKey:  getenv("BREVO_API_KEY", ""),
+		MailFrom:     getenv("MAIL_FROM", ""),
+		MailFromName: getenv("MAIL_FROM_NAME", "ProdTrack"),
+
+		ZeroBounceKey: getenv("ZEROBOUNCE_API_KEY", ""),
 	}
 
 	if ttl := os.Getenv("JWT_TTL_HOURS"); ttl != "" {
