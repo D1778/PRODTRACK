@@ -11,12 +11,15 @@
 ## ✨ Key Features
 -   **Simple accounts**: owners sign up with name, business name, email and password; owners create staff logins.
 -   **Secure auth**: JWT sessions and bcrypt-hashed passwords; staff lose access the moment they are removed.
+-   **Email verification**: signing up emails a 6-digit code (valid 10 minutes, 5 attempts, resend after 60 s). An account can only log in after the code is confirmed, so fake email addresses can't be used. Obviously fake addresses are refused at signup (and when an owner adds staff) before any email is sent: the domain must have a mail server (DNS check), Gmail addresses must follow Gmail's rules (6 to 30 letters, numbers or dots), and common disposable-mail domains are blocked. The mailbox itself is then checked before anything is sent, so an address that doesn't exist gets an error on the signup form instead of a verification page. By default the server asks the recipient's mail server directly (no email is sent; this needs outbound port 25, which hosts such as Render's free plan block, so the check is skipped there). Set `ZEROBOUNCE_API_KEY` to use the ZeroBounce verification service instead, which works from any host. Some providers (for example Outlook) don't answer reliably; those addresses are allowed through, and the emailed code still protects the account. Staff verify the same way at their first login. The login email can't be changed afterwards.
 -   **Products with SKU & warehouse**: instant search and filters (SKU, name, vendor, warehouse, category, stock status); SKUs are generated automatically when left blank.
 -   **Billing**: point-of-sale screen (type or scan a SKU + Enter), PDF bills, stock deducted automatically.
 -   **Log book (owners)**: everything added, sold, removed and changed on any day, with opening/closing stock per product, a timeline of who did what, CSV export and print.
 -   **Safe with many users at once**: see *Concurrency* below.
 -   **Dashboard, alerts and history**: revenue chart, best sellers, low-stock alerts, full history.
 -   **Light / dark mode** switch (top bar) and a mobile-friendly layout.
+-   **Forgot password**: a "Forgot password?" link on the login page, and on the in-app Change password page (opened by the Edit button on the Profile page's Password row). A 6-digit code (valid 10 minutes, 5 attempts) is emailed to the account, then the new password is set with it. The same answer is shown whether or not the email is registered, and resetting signs out every earlier login.
+-   **Profile pictures**: every user can set their own profile picture; owners can also set a business picture (logo) that shows in the sidebar for the whole team. Pictures are cropped and shrunk in the browser, validated on the server (PNG, JPEG or WebP, 100 KB at most) and stored with the user or business record.
 -   **Custom branding**: a ProdTrack logo (hexagon with a checklist clipboard) used in the sidebar, login/signup, landing page, loading screen and browser tab.
 
 ## 🛠️ Technology Stack
@@ -52,6 +55,8 @@ Copy `backend/.env.example` to `backend/.env` and fill in:
 
 `backend/.env` is git-ignored; never commit it.
 
+**Email codes (optional locally):** with `BREVO_API_KEY` empty, the verification code is printed in the backend console (the `[api]` lines in `npm run dev`), so you can sign up without any email service. To send real emails, create a free [Brevo](https://www.brevo.com) account, verify a sender address, create an API key, and set `BREVO_API_KEY` and `MAIL_FROM` (see `backend/.env.example`). Brevo is used over its HTTPS API because Render's free plan blocks SMTP.
+
 ### 3. Run
 ```powershell
 npm install
@@ -86,7 +91,7 @@ prodtrack/
 -   `npm run lint` / `npm run build`
 
 ## 🌐 Deployment
--   **Render (Go backend)**: create a *Web Service* from this repository with **Language** `Go`, **Root Directory** `backend`, **Build Command** `go build -o app .` and **Start Command** `./app`. Set these environment variables: `MONGODB_URI`, `MONGODB_DB=prodtrack`, `JWT_SECRET`, `CORS_ORIGIN=https://<your-vercel-app>` (no trailing slash) and, if the build needs it, `GO_VERSION=1.26.0`. Render sets `PORT` itself. In Atlas Network Access, allow `0.0.0.0/0` because Render's IP addresses can change.
+-   **Render (Go backend)**: create a *Web Service* from this repository with **Language** `Go`, **Root Directory** `backend`, **Build Command** `go build -o app .` and **Start Command** `./app`. Set these environment variables: `MONGODB_URI`, `MONGODB_DB=prodtrack`, `JWT_SECRET`, `CORS_ORIGIN=https://<your-vercel-app>` (no trailing slash), `BREVO_API_KEY` and `MAIL_FROM` (needed for verification emails; without them codes are only printed in the Render logs), `ZEROBOUNCE_API_KEY` (checks that an email's mailbox exists before a code is sent) and, if the build needs it, `GO_VERSION=1.26.0`. Render sets `PORT` itself. In Atlas Network Access, allow `0.0.0.0/0` because Render's IP addresses can change.
 -   **Vercel (frontend)**: set `VITE_API_URL=https://<your-render-app>.onrender.com/api` (Project Settings → Environment Variables) and **redeploy**, because Vite reads it at build time. Leave **Settings → Build and Deployment → Root Directory** empty, because the React app lives in the repository root (there is no `frontend/` folder). Framework preset **Vite**, build command `npm run build`, output directory `dist`.
 
 > **Troubleshooting:**
@@ -122,6 +127,8 @@ The old database is never modified, so switching back only means restoring the o
 -   **Developer experience**: `npm run dev` starts the Go backend automatically; README updated with tools used.
 -   **Database migration**: moved all data to a new Atlas cluster (see the section above).
 -   **Deployment fix**: corrected the Vercel Root Directory so frontend builds succeed after the project restructure.
+-   **Email verification**: signup and first login now require a 6-digit code emailed to the user (new `/auth/verify` and `/auth/resend` endpoints, a Verify page, Brevo email sending). Existing accounts stay verified. Tests cover the code flow, reuse, lockout and resend.
+-   **Profile and business pictures**: new `/auth/avatar` (any user) and `PUT /business` (owner only: name and logo) endpoints with image validation. Users change their photo with an edit button on the photo in Profile; owners edit the business name and picture with the edit button on the sidebar business box. The login email is read-only; the name stays editable.
 -   **Backend hosting**: deployed the Go backend as a new Render web service and pointed the Vercel frontend at it with `VITE_API_URL`; opened Atlas Network Access (`0.0.0.0/0`) so the hosted backend and local development can connect.
 -   **UI polish**: new ProdTrack logo and favicon (the name is shown beside the logo), and the feedback form and the Appearance card were removed from the Profile page (the theme toggle stays in the top bar).
 
