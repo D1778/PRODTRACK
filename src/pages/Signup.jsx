@@ -25,9 +25,9 @@ export default function Signup() {
     }
     setBusy(true);
     try {
-      const user = await signup(form);
-      toast.success(`Your workspace “${user.businessName}” is ready!`);
-      navigate("/dashboard", { replace: true });
+      const res = await signup(form);
+      toast.success("We sent a verification code to your email");
+      navigate("/verify", { replace: true, state: { email: res.email } });
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -69,6 +69,7 @@ export default function Signup() {
             <Icon name="mail" />
             <input id="email" type="email" className="input" placeholder="you@business.com" value={form.email} onChange={set("email")} autoComplete="email" required />
           </div>
+          <span className="hint">Use a real email address. We'll send a 6-digit code to confirm it.</span>
         </div>
         <div className="field">
           <label className="label" htmlFor="password">Password</label>
@@ -77,7 +78,7 @@ export default function Signup() {
         </div>
         <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy}>
           {busy ? <Spinner /> : null}
-          {busy ? "Creating your workspace…" : "Create account"}
+          {busy ? "Sending your code…" : "Create account"}
           {!busy && <Icon name="arrowRight" />}
         </button>
       </form>
