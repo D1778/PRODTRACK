@@ -10,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -112,12 +113,20 @@ func (a *App) requireAuth(next http.HandlerFunc, roles ...string) http.HandlerFu
 		}
 
 		var user User
-		if err := a.store.users.FindOne(r.Context(), bson.M{"_id": userID}).Decode(&user); err != nil {
+		// The avatar is left out: it can be large and most requests don't need it.
+		if err := a.store.users.FindOne(r.Context(), bson.M{"_id": userID},
+			options.FindOne().SetProjection(bson.M{"avatar": 0})).Decode(&user); err != nil {
 			if errors.Is(err, mongo.ErrNoDocuments) {
 				sendError(w, http.StatusUnauthorized, "This account no longer exists")
 				return
 			}
 			sendError(w, http.StatusInternalServerError, "Database error")
+			return
+		}
+
+		// A password reset signs out every earlier login (e.g. someone who had stolen the old password)
+		if !user.PasswordChangedAt.IsZero() && claims.IssuedAt != nil && claims.IssuedAt.Time.Before(user.PasswordChangedAt.Truncate(time.Second)) {
+			sendError(w, http.StatusUnauthorized, "Your password was changed. Please log in again")
 			return
 		}
 
