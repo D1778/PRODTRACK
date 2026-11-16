@@ -27,7 +27,8 @@ export default function Topbar({ onOpenMobile }) {
   const location = useLocation();
 
   const path = location.pathname.replace(/\/$/, "");
-  const [title, crumb] = TITLES[path] || (path.includes("/edit") ? ["Edit product", "Inventory"] : ["Dashboard", "Overview"]);
+  // Only the section (Sales, Inventory, Business...) is shown here; the page has its own title
+  const [, section] = TITLES[path] || (path.includes("/edit") ? ["Edit product", "Inventory"] : ["Dashboard", "Overview"]);
 
   return (
     <header className="topbar">
@@ -40,10 +41,7 @@ export default function Topbar({ onOpenMobile }) {
         </span>
         <span className="brand-name">PRODTRACK</span>
       </Link>
-      <div>
-        <div className="topbar-crumb">{crumb}</div>
-        <div className="topbar-title">{title}</div>
-      </div>
+      <div className="topbar-title">{section}</div>
 
       <div className="topbar-right">
         <button className="icon-btn" onClick={refresh} aria-label="Refresh data" title="Refresh data" disabled={loading}>
