@@ -26,6 +26,10 @@ export default function Login() {
       toast.success(`Welcome back, ${user.name.split(" ")[0]}!`);
       navigate(location.state?.from || "/dashboard", { replace: true });
     } catch (err) {
+      if (err.status === 403 && err.data?.needsVerification) {
+        navigate("/verify", { replace: true, state: { email: err.data.email || form.email, from: location.state?.from } });
+        return;
+      }
       setError(err.message);
       setBusy(false);
     }
@@ -62,7 +66,10 @@ export default function Login() {
           </div>
         </div>
         <div className="field">
-          <label className="label" htmlFor="password">Password</label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <label className="label" htmlFor="password">Password</label>
+            <Link to="/forgot-password" state={{ email: form.email }} style={{ fontSize: 13 }}>Forgot password?</Link>
+          </div>
           <PasswordInput
             id="password"
             value={form.password}
