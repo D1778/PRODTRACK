@@ -1,87 +1,99 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Avatar from "../components/Avatar";
 import Icon from "../components/Icon";
-import { PageHeader, PasswordInput, Spinner, StrengthMeter } from "../components/ui";
+import { PageHeader, Spinner } from "../components/ui";
 import { useApp } from "../context/AppContext";
 import { useToast } from "../context/ToastContext";
-import { initials } from "../lib/format";
+import { pictureToDataURL } from "../lib/image";
 
-function DetailsForm() {
-  const { user, updateProfile } = useApp();
+// The profile photo with an edit button right on it (and a remove button once one is set).
+function EditableAvatar() {
+  const { user, updateAvatar } = useApp();
   const toast = useToast();
-  const [form, setForm] = useState({ name: user.name, email: user.email, currentPassword: "" });
-  const [error, setError] = useState("");
+  const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
-  const emailChanged = form.email.trim().toLowerCase() !== user.email;
-  const dirty = form.name.trim() !== user.name || emailChanged;
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setError("");
+  const save = async (makeImage, message) => {
     setBusy(true);
     try {
-      await updateProfile({ name: form.name, email: form.email, currentPassword: form.currentPassword });
-      setForm((f) => ({ ...f, currentPassword: "" }));
-      toast.success("Profile updated");
+      await updateAvatar(await makeImage());
+      toast.success(message);
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
     } finally {
       setBusy(false);
     }
   };
 
+  const onFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow choosing the same file again later
+    if (file) save(() => pictureToDataURL(file), "Profile picture updated");
+  };
+
   return (
-    <form className="card" onSubmit={submit}>
-      <div className="card-head">
-        <div>
-          <h2>Personal details</h2>
-          <p>How you appear on bills and in history.</p>
-        </div>
-      </div>
-      <div className="card-body">
-        {error && <div className="alert alert-error" role="alert"><Icon name="alertCircle" /> {error}</div>}
-        <div className="field">
-          <label className="label" htmlFor="p-name">Full name</label>
-          <input id="p-name" className="input" value={form.name} onChange={set("name")} required />
-        </div>
-        <div className="field">
-          <label className="label" htmlFor="p-email">Email</label>
-          <input id="p-email" type="email" className="input" value={form.email} onChange={set("email")} required />
-        </div>
-        {emailChanged && (
-          <div className="field">
-            <label className="label" htmlFor="p-cur">Current password</label>
-            <PasswordInput id="p-cur" value={form.currentPassword} onChange={set("currentPassword")} placeholder="Confirm it's you" autoComplete="current-password" />
-            <span className="hint">Required to change your login email.</span>
-          </div>
-        )}
-        <button className="btn btn-primary" disabled={!dirty || busy}>
-          {busy ? <Spinner /> : <Icon name="check" />} Save changes
+    <div className="avatar-edit">
+      <Avatar className="lg gradient" src={user.avatar} name={user.name} />
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onFile} />
+      <button type="button" className="avatar-edit-btn" disabled={busy} onClick={() => fileRef.current?.click()} title="Change profile picture" aria-label="Change profile picture">
+        {busy ? <Spinner /> : <Icon name="edit" />}
+      </button>
+      {user.avatar && (
+        <button type="button" className="avatar-remove-btn" disabled={busy} onClick={() => save(async () => "", "Profile picture removed")} title="Remove profile picture" aria-label="Remove profile picture">
+          <Icon name="x" />
         </button>
-      </div>
-    </form>
+      )}
+    </div>
   );
 }
 
-function PasswordForm() {
-  const { updateProfile, user } = useApp();
+// One line of the details card: a label, its value, and an Edit button when it can be edited.
+function DetailRow({ label, value, hint, editing, onEdit, children }) {
+  return (
+    <div className="detail-row">
+      <div className="detail-label">{label}</div>
+      <div className="detail-main">
+        {editing ? (
+          children
+        ) : (
+          <>
+            <div className="detail-value">{value}</div>
+            {hint && <div className="hint">{hint}</div>}
+          </>
+        )}
+      </div>
+      {onEdit && !editing && (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit}>
+          <Icon name="edit" /> Edit
+        </button>
+      )}
+    </div>
+  );
+}
+
+function NameRow() {
+  const { user, updateProfile } = useApp();
   const toast = useToast();
-  const [form, setForm] = useState({ current: "", next: "", confirm: "" });
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(user.name);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const open = () => {
+    setName(user.name);
+    setError("");
+    setEditing(true);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setError("");
-    if (form.next.length < 8) return setError("New password must be at least 8 characters");
-    if (form.next !== form.confirm) return setError("New passwords don't match");
     setBusy(true);
     try {
-      await updateProfile({ name: user.name, email: user.email, currentPassword: form.current, newPassword: form.next });
-      setForm({ current: "", next: "", confirm: "" });
-      toast.success("Password changed");
+      await updateProfile({ name, email: user.email });
+      toast.success("Name updated");
+      setEditing(false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -90,39 +102,29 @@ function PasswordForm() {
   };
 
   return (
-    <form className="card" onSubmit={submit}>
-      <div className="card-head">
-        <div>
-          <h2>Change password</h2>
-          <p>Passwords are stored encrypted with bcrypt.</p>
-        </div>
-      </div>
-      <div className="card-body">
+    <DetailRow label="Full name" value={user.name} editing={editing} onEdit={open}>
+      <form onSubmit={submit} onKeyDown={(e) => e.key === "Escape" && setEditing(false)}>
         {error && <div className="alert alert-error" role="alert"><Icon name="alertCircle" /> {error}</div>}
-        <div className="field">
-          <label className="label" htmlFor="pw-cur">Current password</label>
-          <PasswordInput id="pw-cur" value={form.current} onChange={set("current")} autoComplete="current-password" />
+        <input className="input" aria-label="Full name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus required />
+        <div className="detail-actions">
+          <button className="btn btn-primary btn-sm" disabled={busy || !name.trim() || name.trim() === user.name}>
+            {busy ? <Spinner /> : <Icon name="check" />} Save
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
         </div>
-        <div className="field">
-          <label className="label" htmlFor="pw-new">New password</label>
-          <PasswordInput id="pw-new" value={form.next} onChange={set("next")} autoComplete="new-password" />
-          <StrengthMeter password={form.next} />
-        </div>
-        <div className="field">
-          <label className="label" htmlFor="pw-confirm">Confirm new password</label>
-          <PasswordInput id="pw-confirm" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" />
-        </div>
-        <button className="btn btn-primary" disabled={busy || !form.current || !form.next}>
-          {busy ? <Spinner /> : <Icon name="lock" />} Update password
-        </button>
-      </div>
-    </form>
+      </form>
+    </DetailRow>
   );
+}
+
+// The password is changed on its own page, opened by the Edit button
+function PasswordRow() {
+  const navigate = useNavigate();
+  return <DetailRow label="Password" value="••••••••••" onEdit={() => navigate("/dashboard/password")} />;
 }
 
 export default function Profile() {
-  const { user, isOwner, logout } = useApp();
-  const navigate = useNavigate();
+  const { user, isOwner } = useApp();
 
   return (
     <>
@@ -130,7 +132,7 @@ export default function Profile() {
 
       <div className="card mb">
         <div className="profile-hero">
-          <span className="avatar lg gradient">{initials(user.name)}</span>
+          <EditableAvatar />
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2>{user.name}</h2>
             <div className="muted">{user.email}</div>
@@ -139,15 +141,19 @@ export default function Profile() {
               <span className="badge"><Icon name="store" /> {user.businessName}</span>
             </div>
           </div>
-          <button className="btn btn-secondary" onClick={() => { logout(); navigate("/login"); }}>
-            <Icon name="logout" /> Log out
-          </button>
         </div>
       </div>
 
-      <div className="grid grid-2 mb" style={{ alignItems: "start" }}>
-        <DetailsForm />
-        <PasswordForm />
+      <div className="card mb">
+        <div className="card-head">
+          <div>
+            <h2>Account details</h2>
+            <p>Click Edit to change your name, or to open the page for changing your password.</p>
+          </div>
+        </div>
+        <NameRow />
+        <DetailRow label="Email" value={user.email} hint="Your login email was verified at signup and can't be changed." />
+        <PasswordRow />
       </div>
     </>
   );
