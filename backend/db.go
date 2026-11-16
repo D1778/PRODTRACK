@@ -19,6 +19,7 @@ type Business struct {
 	Name      string        `bson:"name" json:"name"`
 	OwnerID   bson.ObjectID `bson:"ownerId" json:"ownerId"`
 	CreatedAt time.Time     `bson:"createdAt" json:"createdAt"`
+	Logo      string        `bson:"logo,omitempty" json:"-"` // data URL, set by the owner
 }
 
 type User struct {
@@ -29,6 +30,22 @@ type User struct {
 	Role         string        `bson:"role" json:"role"`      // "owner" or "staff"
 	BusinessID   bson.ObjectID `bson:"businessId" json:"businessId"`
 	CreatedAt    time.Time     `bson:"createdAt" json:"createdAt"`
+
+	// Email verification. Accounts created before verification existed have none
+	// of these fields, so they count as verified (Unverified is false).
+	Unverified     bool      `bson:"unverified,omitempty" json:"-"`
+	VerifyCodeHash string    `bson:"verifyCodeHash,omitempty" json:"-"`
+	VerifyExpires  time.Time `bson:"verifyExpires,omitempty" json:"-"`
+	VerifyAttempts int       `bson:"verifyAttempts" json:"-"`
+	VerifySentAt   time.Time `bson:"verifySentAt,omitempty" json:"-"`
+
+	// Forgot-password reset code (same idea as the verification code, kept separate).
+	ResetCodeHash string    `bson:"resetCodeHash,omitempty" json:"-"`
+	ResetExpires  time.Time `bson:"resetExpires,omitempty" json:"-"`
+	ResetAttempts int       `bson:"resetAttempts" json:"-"`
+	ResetSentAt   time.Time `bson:"resetSentAt,omitempty" json:"-"`
+	// Logins issued before this moment stop working (set when the password is reset).
+	PasswordChangedAt time.Time `bson:"passwordChangedAt,omitempty" json:"-"`
 }
 
 type Product struct {
