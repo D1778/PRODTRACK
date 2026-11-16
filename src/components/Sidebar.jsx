@@ -1,8 +1,8 @@
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
+import AccountMenu from "./AccountMenu";
 import Icon from "./Icon";
-import Logo from "./Logo";
 import { useApp } from "../context/AppContext";
-import { initials } from "../lib/format";
 
 const SECTIONS = [
   {
@@ -27,24 +27,31 @@ const SECTIONS = [
     items: [
       { to: "/dashboard/logbook", label: "Log book", icon: "calendar", owner: true },
       { to: "/dashboard/staff", label: "Staff", icon: "users", owner: true },
-      { to: "/dashboard/profile", label: "Profile", icon: "settings" },
     ],
   },
 ];
 
-export default function Sidebar({ onNavigate }) {
-  const { user, isOwner, products } = useApp();
+export default function Sidebar({ pinned, onTogglePinned, onNavigate }) {
+  const { isOwner, products } = useApp();
+  const [menuOpen, setMenuOpen] = useState(false); // the account menu is open: keep the sidebar expanded
   const alertCount = products.filter((p) => p.stock <= p.minThreshold).length;
 
   return (
-    <aside className="sidebar" aria-label="Main navigation">
-      <div className="sidebar-brand">
-        <span className="brand-mark">
-          <Logo />
-        </span>
-        <span className="brand-name">
-          PRODTRACK
-          <small>Inventory & Billing</small>
+    <aside className={`sidebar ${menuOpen ? "menu-open" : ""}`} aria-label="Main navigation">
+      <div className="sidebar-head">
+        <button
+          type="button"
+          className="sidebar-toggle"
+          onClick={onTogglePinned}
+          aria-pressed={pinned}
+          aria-label={pinned ? "Unpin sidebar (let it float)" : "Pin sidebar open"}
+          title={pinned ? "Unpin sidebar (let it float)" : "Pin sidebar open"}
+        >
+          <Icon name="menu" />
+        </button>
+        <span className="sidebar-head-label">
+          <i aria-hidden="true" />
+          Main Menu
         </span>
       </div>
 
@@ -75,13 +82,7 @@ export default function Sidebar({ onNavigate }) {
       </nav>
 
       <div className="sidebar-foot">
-        <div className="business-chip" title={user?.businessName}>
-          <span className="avatar">{initials(user?.businessName)}</span>
-          <div>
-            <strong>{user?.businessName}</strong>
-            <span>{isOwner ? "Owner workspace" : "Staff workspace"}</span>
-          </div>
-        </div>
+        <AccountMenu onNavigate={onNavigate} onOpenChange={setMenuOpen} />
       </div>
     </aside>
   );
