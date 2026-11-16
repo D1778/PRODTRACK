@@ -34,7 +34,7 @@ func main() {
 	defer store.Close()
 	log.Printf("Connected to MongoDB database %q (transactions: %v)", cfg.MongoDB, store.txn)
 
-	app := &App{store: store, tokens: TokenService{secret: cfg.JWTSecret, ttl: cfg.JWTTTL}}
+	app := &App{store: store, tokens: TokenService{secret: cfg.JWTSecret, ttl: cfg.JWTTTL}, mailer: newMailer(cfg), checker: newMailboxChecker(cfg)}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -83,8 +83,14 @@ func newRouter(app *App, staticDir string) http.Handler {
 	api.HandleFunc("GET /health", app.health)
 	api.HandleFunc("POST /auth/signup", app.signup)
 	api.HandleFunc("POST /auth/login", app.login)
+	api.HandleFunc("POST /auth/verify", app.verifyEmail)
+	api.HandleFunc("POST /auth/resend", app.resendCode)
+	api.HandleFunc("POST /auth/forgot", app.forgotPassword)
+	api.HandleFunc("POST /auth/reset", app.resetPassword)
 	api.HandleFunc("GET /auth/me", auth(app.me))
 	api.HandleFunc("PUT /auth/profile", auth(app.updateProfile))
+	api.HandleFunc("PUT /auth/avatar", auth(app.updateAvatar))
+	api.HandleFunc("PUT /business", auth(app.updateBusiness, owner...))
 
 	api.HandleFunc("GET /products", auth(app.listProducts))
 	api.HandleFunc("POST /products", auth(app.createProduct, anyone...))
