@@ -118,6 +118,8 @@ export function AppProvider({ children }) {
 
       updateProfile: async (form) => {
         const res = await api("/auth/profile", { method: "PUT", body: form });
+        // A password change signs out other sessions and returns a new token for this one
+        if (res.token) tokenStore.set(res.token);
         setUser(res.user);
         return res;
       },

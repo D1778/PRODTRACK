@@ -86,7 +86,7 @@ prodtrack/
 ### Scripts
 -   `npm run dev` – frontend + backend for development
 -   `npm start` – build the frontend and serve everything from the Go server at `http://localhost:8080`
--   `npm run test:backend` – Go tests (set `MONGODB_TEST_URI` to also run the database, end-to-end and concurrency tests; they use a temporary database that is deleted afterwards)
+-   `npm run test:backend` – Go tests, including the database, end-to-end, concurrency and security tests. These use `MONGODB_URI` from `backend/.env` (or `MONGODB_TEST_URI` if set) and work in a temporary `prodtrack_test_…` database that is deleted afterwards, so real data is never touched
 -   `npm run dev:backend` – backend only
 -   `npm run lint` / `npm run build`
 

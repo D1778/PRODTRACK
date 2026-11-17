@@ -34,7 +34,8 @@ func main() {
 	defer store.Close()
 	log.Printf("Connected to MongoDB database %q (transactions: %v)", cfg.MongoDB, store.txn)
 
-	app := &App{store: store, tokens: TokenService{secret: cfg.JWTSecret, ttl: cfg.JWTTTL}, mailer: newMailer(cfg), checker: newMailboxChecker(cfg)}
+	app := &App{store: store, tokens: TokenService{secret: cfg.JWTSecret, ttl: cfg.JWTTTL}, mailer: newMailer(cfg), checker: newMailboxChecker(cfg),
+		authLimiter: newRateLimiter(cfg.AuthRateLimit, 5*time.Minute, cfg.TrustProxy)}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -81,12 +82,13 @@ func newRouter(app *App, staticDir string) http.Handler {
 	auth := app.requireAuth
 
 	api.HandleFunc("GET /health", app.health)
-	api.HandleFunc("POST /auth/signup", app.signup)
-	api.HandleFunc("POST /auth/login", app.login)
-	api.HandleFunc("POST /auth/verify", app.verifyEmail)
-	api.HandleFunc("POST /auth/resend", app.resendCode)
-	api.HandleFunc("POST /auth/forgot", app.forgotPassword)
-	api.HandleFunc("POST /auth/reset", app.resetPassword)
+	limit := app.authLimiter.wrap // per-IP limit on the public auth routes
+	api.HandleFunc("POST /auth/signup", limit(app.signup))
+	api.HandleFunc("POST /auth/login", limit(app.login))
+	api.HandleFunc("POST /auth/verify", limit(app.verifyEmail))
+	api.HandleFunc("POST /auth/resend", limit(app.resendCode))
+	api.HandleFunc("POST /auth/forgot", limit(app.forgotPassword))
+	api.HandleFunc("POST /auth/reset", limit(app.resetPassword))
 	api.HandleFunc("GET /auth/me", auth(app.me))
 	api.HandleFunc("PUT /auth/profile", auth(app.updateProfile))
 	api.HandleFunc("PUT /auth/avatar", auth(app.updateAvatar))
@@ -141,6 +143,8 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("X-Frame-Options", "DENY")
+		// Browsers only honour this over HTTPS, so it is harmless on plain HTTP
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 		next.ServeHTTP(w, r)
 	})
 }

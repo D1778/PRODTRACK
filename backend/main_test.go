@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -385,17 +386,10 @@ func (c *apiClient) loginVerified(m *captureMailer, email, password string) {
 }
 
 func TestAPIEndToEnd(t *testing.T) {
-	uri := os.Getenv("MONGODB_TEST_URI")
-	if uri == "" {
-		t.Skip("set MONGODB_TEST_URI to run the end-to-end MongoDB test")
-	}
+	store, cleanup := connectTestStore(t)
+	defer cleanup()
 	ctx := context.Background()
-	dbName := fmt.Sprintf("prodtrack_test_%d", time.Now().UnixNano())
-	store, err := connectStore(ctx, uri, dbName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { store.db.Drop(ctx); store.Close() }()
+	var err error
 
 	mails := &captureMailer{}
 	app := &App{store: store, tokens: TokenService{secret: []byte("e2e-secret-e2e-secret-e2e-secret!"), ttl: time.Hour}, mailer: mails, domainCheck: testDomainCheck, checker: fakeChecker{}}
@@ -554,6 +548,8 @@ func TestAPIEndToEnd(t *testing.T) {
 	expect(t, "password change without current password", status, 401, body)
 	status, body, _ = owner.do("PUT", "/auth/profile", map[string]string{"name": "Asha K", "email": "asha@example.com", "currentPassword": "supersecret", "newPassword": "newsecret1"})
 	expect(t, "profile update", status, 200, body)
+	// A password change signs out earlier logins; this browser gets a new token
+	owner.token = body["token"].(string)
 	status, body, _ = anon.do("POST", "/auth/login", map[string]string{"email": "asha@example.com", "password": "newsecret1"})
 	expect(t, "login with new credentials", status, 200, body)
 
@@ -708,19 +704,61 @@ func TestAPIEndToEnd(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func newTestServer(t *testing.T) (*Store, string, *captureMailer, func()) {
-	uri := os.Getenv("MONGODB_TEST_URI")
-	if uri == "" {
-		t.Skip("set MONGODB_TEST_URI to run MongoDB tests")
-	}
-	ctx := context.Background()
-	store, err := connectStore(ctx, uri, fmt.Sprintf("prodtrack_test_%d", time.Now().UnixNano()))
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, cleanup := connectTestStore(t)
 	mails := &captureMailer{}
 	app := &App{store: store, tokens: TokenService{secret: []byte("e2e-secret-e2e-secret-e2e-secret!"), ttl: time.Hour}, mailer: mails, domainCheck: testDomainCheck}
 	srv := httptest.NewServer(newRouter(app, t.TempDir()))
-	return store, srv.URL, mails, func() { srv.Close(); store.db.Drop(ctx); store.Close() }
+	return store, srv.URL, mails, func() { srv.Close(); cleanup() }
+}
+
+// testMongoURI picks the server for database tests: MONGODB_TEST_URI if set,
+// otherwise MONGODB_URI from backend/.env (e.g. the Atlas cluster). The tests
+// only ever use their own temporary database (see connectTestStore).
+func testMongoURI() string {
+	if uri := os.Getenv("MONGODB_TEST_URI"); uri != "" {
+		return uri
+	}
+	f, err := os.Open(".env")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		key, value, ok := strings.Cut(strings.TrimSpace(sc.Text()), "=")
+		if ok && strings.TrimSpace(strings.TrimPrefix(key, "export ")) == "MONGODB_URI" {
+			value = strings.Trim(strings.TrimSpace(value), `"'`)
+			if strings.HasPrefix(value, "mongodb://") || strings.HasPrefix(value, "mongodb+srv://") {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+// connectTestStore opens a fresh, uniquely named database (prodtrack_test_<time>)
+// and returns a cleanup that drops it. Real data is never touched: the drop
+// refuses any database whose name doesn't start with "prodtrack_test_".
+func connectTestStore(t *testing.T) (*Store, func()) {
+	t.Helper()
+	uri := testMongoURI()
+	if uri == "" {
+		t.Skip("no MongoDB for tests: set MONGODB_URI in backend/.env or MONGODB_TEST_URI")
+	}
+	ctx := context.Background()
+	dbName := fmt.Sprintf("prodtrack_test_%d", time.Now().UnixNano())
+	store, err := connectStore(ctx, uri, dbName)
+	if err != nil {
+		t.Fatalf("connect to test MongoDB: %v", err)
+	}
+	return store, func() {
+		if name := store.db.Name(); strings.HasPrefix(name, "prodtrack_test_") {
+			if err := store.db.Drop(ctx); err != nil {
+				t.Logf("could not drop test database %s: %v", name, err)
+			}
+		}
+		store.Close()
+	}
 }
 
 func TestConcurrentUpdates(t *testing.T) {

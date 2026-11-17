@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,6 +31,12 @@ type Config struct {
 	// ZeroBounceKey enables checking that an email's mailbox really exists
 	// before a code is sent. Empty = no check.
 	ZeroBounceKey string
+
+	// AuthRateLimit is how many login/signup/code requests one IP may make per
+	// 5 minutes. TrustProxy reads the client IP from X-Forwarded-For; turn it on
+	// only behind a reverse proxy (Render, Railway, Nginx...).
+	AuthRateLimit int
+	TrustProxy    bool
 }
 
 func loadConfig() Config {
@@ -47,6 +54,12 @@ func loadConfig() Config {
 		MailFromName: getenv("MAIL_FROM_NAME", "ProdTrack"),
 
 		ZeroBounceKey: getenv("ZEROBOUNCE_API_KEY", ""),
+
+		AuthRateLimit: 30,
+		TrustProxy:    getenv("TRUST_PROXY", "") == "1",
+	}
+	if n, err := strconv.Atoi(getenv("AUTH_RATE_LIMIT", "")); err == nil && n > 0 {
+		cfg.AuthRateLimit = n
 	}
 
 	if ttl := os.Getenv("JWT_TTL_HOURS"); ttl != "" {

@@ -28,6 +28,8 @@ type App struct {
 	domainCheck func(ctx context.Context, domain string) bool
 	// checker asks whether a mailbox really exists before a code is sent. nil = no check.
 	checker MailboxChecker
+	// authLimiter caps login/signup/code requests per IP. nil = no limit (tests).
+	authLimiter *rateLimiter
 }
 
 // ============================================================================
@@ -329,6 +331,8 @@ func (a *App) updateProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		set["passwordHash"] = hash
+		// Sign out every other login (e.g. someone who had the old password).
+		set["passwordChangedAt"] = time.Now().UTC()
 	}
 
 	if _, err := a.store.users.UpdateByID(r.Context(), user.ID, bson.M{"$set": set}); err != nil {
@@ -336,7 +340,17 @@ func (a *App) updateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user.Name = req.Name
-	sendJSON(w, http.StatusOK, map[string]any{"message": "Profile updated", "user": a.userView(r.Context(), user)})
+	res := map[string]any{"message": "Profile updated", "user": a.userView(r.Context(), user)}
+	if req.NewPassword != "" {
+		// This browser stays logged in with a fresh token issued after the change.
+		token, err := a.tokens.Issue(user)
+		if err != nil {
+			serverError(w, "issue token", err)
+			return
+		}
+		res["token"] = token
+	}
+	sendJSON(w, http.StatusOK, res)
 }
 
 // ============================================================================
